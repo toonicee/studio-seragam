@@ -34,6 +34,8 @@ export interface ProductConfig {
 	ease: number;
 	frontSlotY?: number;
 	note?: string;
+	/** Produk polos tanpa pilihan pola; desainnya cukup unggah logo (tanpa teks) */
+	logoOnly?: boolean;
 }
 
 export type SlotKey = 'dadaKiri' | 'dadaKanan' | 'depan' | 'punggung';
@@ -83,6 +85,8 @@ export interface UniformState {
 	material: Record<ProductKey, string>;
 	look: Record<ProductKey, LookConfig>;
 	logoSrc: string | null;
+	/** Logo unggahan per produk `logoOnly` (kaos, polo); kosong = pakai logo klien */
+	productLogo: Partial<Record<ProductKey, string | null>>;
 	removeWhite: boolean;
 	slotOn: Record<ProductKey, Record<SlotKey, boolean>>;
 	slots: Record<SlotKey, SlotState>;
@@ -112,6 +116,8 @@ export interface PatternItem {
 	sleeveStripe?: 'accent' | 'reflect' | 'double' | 'pipe';
 	extra?: boolean;
 	catalog?: boolean;
+	/** Tali pundak (epolet) warna aksen — khusus kemeja */
+	epaulet?: boolean;
 	vestOnly?: boolean;
 }
 

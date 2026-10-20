@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { replaceState } from '$app/navigation';
 	import { uniformStore } from '$lib/stores/uniform.svelte';
+	import { PRODUCTS } from '$lib/constants/catalog';
+	import type { ProductKey } from '$lib/types/uniform';
 	import Header from '$lib/components/Header.svelte';
 	import Canvas3D from '$lib/components/Canvas3D.svelte';
 	import ModelTab from '$lib/components/ModelTab.svelte';
@@ -21,6 +24,14 @@
 
 	onMount(() => {
 		isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+
+		// Datang dari katalog (/?product=kaos): model sudah dipilih, langsung ke langkah Warna
+		const pid = new URLSearchParams(location.search).get('product');
+		if (pid && pid in PRODUCTS) {
+			uniformStore.setProduct(pid as ProductKey);
+			uniformStore.activeTab = 'warna';
+			replaceState(location.pathname, {});
+		}
 	});
 
 	function toggleTheme() {
@@ -49,6 +60,23 @@
 	function closeOrders() {
 		isOrdersOpen = false;
 	}
+
+	const STEPS = [
+		{ id: 'model', label: 'Model', hint: 'Pilih jenis seragam & bahan' },
+		{ id: 'warna', label: 'Warna', hint: 'Pilih warna seragam' },
+		{ id: 'logo', label: 'Logo', hint: 'Pasang logo di seragam' },
+		{ id: 'order', label: 'Order', hint: 'Isi jumlah per ukuran & kirim' }
+	] as const;
+
+	let scrollEl: HTMLElement;
+	const stepIdx = $derived(STEPS.findIndex(s => s.id === uniformStore.activeTab));
+
+	function goStep(i: number) {
+		const s = STEPS[i];
+		if (!s) return;
+		uniformStore.activeTab = s.id;
+		scrollEl?.scrollTo({ top: 0 });
+	}
 </script>
 
 <div class="wrapper">
@@ -66,41 +94,23 @@
 		<!-- Panel Pengaturan Kanan -->
 		<aside class="panel" aria-label="Pengaturan seragam">
 			<div class="tabs" role="tablist">
-				<button
-					type="button"
-					role="tab"
-					aria-selected={uniformStore.activeTab === 'model'}
-					onclick={() => (uniformStore.activeTab = 'model')}
-				>
-					<span>1</span>Model
-				</button>
-				<button
-					type="button"
-					role="tab"
-					aria-selected={uniformStore.activeTab === 'warna'}
-					onclick={() => (uniformStore.activeTab = 'warna')}
-				>
-					<span>2</span>Warna
-				</button>
-				<button
-					type="button"
-					role="tab"
-					aria-selected={uniformStore.activeTab === 'logo'}
-					onclick={() => (uniformStore.activeTab = 'logo')}
-				>
-					<span>3</span>Logo
-				</button>
-				<button
-					type="button"
-					role="tab"
-					aria-selected={uniformStore.activeTab === 'order'}
-					onclick={() => (uniformStore.activeTab = 'order')}
-				>
-					<span>4</span>Order
-				</button>
+				{#each STEPS as s, i}
+					<button
+						type="button"
+						role="tab"
+						aria-selected={uniformStore.activeTab === s.id}
+						class:done={i < stepIdx}
+						onclick={() => goStep(i)}
+					>
+						<span>{i < stepIdx ? '✓' : i + 1}</span>{s.label}
+					</button>
+				{/each}
 			</div>
+			<p class="step-hint">
+				<b>Langkah {stepIdx + 1} dari {STEPS.length}</b> · {STEPS[stepIdx]?.hint}
+			</p>
 
-			<div class="scroll">
+			<div class="scroll" bind:this={scrollEl}>
 				{#if uniformStore.activeTab === 'model'}
 					<ModelTab />
 				{:else if uniformStore.activeTab === 'warna'}
@@ -109,6 +119,19 @@
 					<LogoTab />
 				{:else if uniformStore.activeTab === 'order'}
 					<OrderTab onOpenMockup={openMockup} />
+				{/if}
+
+				{#if stepIdx < STEPS.length - 1}
+					<nav class="step-nav" aria-label="Navigasi langkah">
+						{#if stepIdx > 0}
+							<button type="button" class="step-back" onclick={() => goStep(stepIdx - 1)}>
+								← {STEPS[stepIdx - 1].label}
+							</button>
+						{/if}
+						<button type="button" class="step-next" onclick={() => goStep(stepIdx + 1)}>
+							Lanjut: {STEPS[stepIdx + 1].label} →
+						</button>
+					</nav>
 				{/if}
 			</div>
 
@@ -200,46 +223,121 @@
 		border-color: var(--ink, #17202a);
 	}
 
+	.tabs button.done span {
+		background: #e35a12;
+		border-color: #e35a12;
+		color: #fff;
+	}
+
+	.step-hint {
+		margin: 0;
+		padding: 8px 20px;
+		font-size: 12.5px;
+		color: var(--ink-2, #4d5a66);
+		background: var(--sheet-2, #f0f3f5);
+		border-bottom: 1px solid var(--line, #d2d9de);
+		flex: none;
+	}
+
+	.step-hint b {
+		color: #e35a12;
+		font-weight: 600;
+	}
+
 	.scroll {
 		flex: 1;
 		min-height: 0;
 		overflow-y: auto;
 		overscroll-behavior: contain;
+		-webkit-overflow-scrolling: touch;
 	}
 
+	.step-nav {
+		display: flex;
+		gap: 8px;
+		padding: 0 20px 24px;
+	}
+
+	.step-nav button {
+		min-height: 46px;
+		padding: 0 16px;
+		border-radius: 12px;
+		font: 600 15px/1 var(--f-body, sans-serif);
+		cursor: pointer;
+	}
+
+	.step-back {
+		background: var(--sheet, #fff);
+		color: var(--ink, #17202a);
+		border: 1px solid var(--line, #d2d9de);
+	}
+
+	.step-next {
+		flex: 1;
+		background: #e35a12;
+		color: #fff;
+		border: 1px solid #e35a12;
+	}
+
+	.step-next:hover {
+		background: #c94e0e;
+	}
+
+	/* Mobile: tampilan seperti aplikasi — pratinjau 3D tetap terlihat di atas,
+	   panel pengaturan menggulir sendiri di bawahnya */
 	@media (max-width: 900px) {
 		.wrapper {
-			height: auto;
-			min-height: 100vh;
-			padding-bottom: 0;
+			height: 100dvh;
+			padding: 8px 8px 0;
 		}
 
 		.app {
 			display: flex;
 			flex-direction: column;
-			gap: 12px;
-		}
-
-		:global(.stage) {
-			height: 56svh;
-			min-height: 340px;
-			flex: none;
+			gap: 8px;
 		}
 
 		.panel {
-			overflow: visible;
+			flex: 1;
 			border-radius: 16px 16px 0 0;
 			border-bottom: 0;
 		}
 
-		.tabs {
-			position: sticky;
-			top: 0;
-			z-index: 5;
+		.tabs button {
+			gap: 5px;
+			padding: 0 2px;
+			min-height: 46px;
+			font-size: 13px;
 		}
 
-		.scroll {
-			overflow: visible;
+		.tabs button span {
+			width: 20px;
+			height: 20px;
+		}
+
+		.tabs button[aria-selected='true'] {
+			border-bottom-color: #e35a12;
+		}
+
+		.tabs button[aria-selected='true'] span {
+			background: #e35a12;
+			border-color: #e35a12;
+			color: #fff;
+		}
+
+		.step-hint {
+			display: none;
+		}
+
+		.step-nav {
+			position: sticky;
+			bottom: 0;
+			padding: 14px 16px 12px;
+			background: linear-gradient(transparent, var(--sheet, #fff) 14px);
+		}
+
+		.step-nav button {
+			min-height: 44px;
 		}
 	}
 </style>

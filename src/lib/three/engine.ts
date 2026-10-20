@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import {
 	PRODUCTS,
 	SLOT_DEFS,
@@ -61,6 +60,44 @@ export interface ThreeEngine {
 	destroy: () => void;
 }
 
+/**
+ * Studio foto produk sederhana untuk environment map: ruangan abu gelap + softbox besar.
+ * Memberi gradasi terang-gelap yang lembut di kain (terutama kain putih) seperti foto katalog.
+ */
+function studioEnvironment() {
+	const env = new THREE.Scene();
+	const room = new THREE.Mesh(
+		new THREE.BoxGeometry(24, 14, 24),
+		new THREE.MeshBasicMaterial({ color: new THREE.Color().setScalar(0.09), side: THREE.BackSide })
+	);
+	room.position.y = 3;
+	env.add(room);
+	const floor = new THREE.Mesh(
+		new THREE.PlaneGeometry(24, 24),
+		new THREE.MeshBasicMaterial({ color: new THREE.Color().setScalar(0.28) })
+	);
+	floor.rotation.x = -Math.PI / 2;
+	floor.position.y = -3.9;
+	env.add(floor);
+
+	const box = (w: number, h: number, pos: [number, number, number], hex: number, power: number) => {
+		const m = new THREE.Mesh(
+			new THREE.PlaneGeometry(w, h),
+			new THREE.MeshBasicMaterial({ color: new THREE.Color(hex).multiplyScalar(power), side: THREE.DoubleSide })
+		);
+		m.position.set(...pos);
+		m.lookAt(0, 0, 0);
+		env.add(m);
+	};
+	box(7, 7, [-6.5, 5, 6.5], 0xfffaf4, 5.2); // key softbox: kiri-atas-depan
+	box(5, 8, [8, 0.5, 4.5], 0xeef3ff, 1.7); // fill: kanan
+	box(9, 9, [0, 9.5, 1], 0xffffff, 2.2); // lampu atas
+	box(1.6, 9, [-7, 2, -7], 0xffffff, 3.2); // strip rim kiri-belakang
+	box(1.6, 9, [7, 2, -7], 0xffffff, 3.2); // strip rim kanan-belakang
+	box(10, 3, [0, -1, 10], 0xffffff, 0.9); // pantulan depan bawah (reflektor)
+	return env;
+}
+
 export function createThreeEngine(
 	canvas: HTMLCanvasElement,
 	container: HTMLElement,
@@ -84,12 +121,15 @@ export function createThreeEngine(
 		dur: number;
 	} | null = null;
 	let fitDist = 4.6;
+	let lastH = 0;
 
 	let curTorso: TorsoObject | null = null;
 	let curSleeveCfg: SleeveConfig | null = null;
 	let curSleeveLen = 0;
 	let curPlacketV: [number, number] | null = null;
 	let curPid: ProductKey = 'kemeja';
+	/** Epolet dibangun untuk semua kemeja, tampil hanya bila pola memintanya */
+	let epaulets: THREE.Group | null = null;
 
 	let measureGroup: THREE.Group | null = null;
 	let measureKey = '';
@@ -118,6 +158,7 @@ export function createThreeEngine(
 		placket: makeCanvasTex(64, 1024),
 		cuff: makeCanvasTex(512, 128),
 		roll: makeCanvasTex(512, 128),
+		epaulet: makeCanvasTex(128, 512),
 		zip: makeCanvasTex(32, 1024)
 	};
 
@@ -126,17 +167,19 @@ export function createThreeEngine(
 			color: 0xffffff,
 			roughness: 0.88,
 			metalness: 0,
-			sheen: 0.28,
-			sheenRoughness: 0.6,
+			// Serat katun: kilau lembut di tepi (grazing) seperti kain asli
+			sheen: 0.42,
+			sheenRoughness: 0.78,
 			sheenColor: new THREE.Color(0xffffff),
 			...opts
 		});
 	}
 
 	const mats = {
-		body: fabric({ map: tx.body.tex, bumpMap: tx.bump.tex, bumpScale: 3 }),
+		// vertexColors: oklusi lembah lipatan dari geometri drape
+		body: fabric({ map: tx.body.tex, bumpMap: tx.bump.tex, bumpScale: 3, vertexColors: true }),
 		inner: new THREE.MeshStandardMaterial({ side: THREE.BackSide, roughness: 1 }),
-		sleeve: fabric({ map: tx.sleeve.tex }),
+		sleeve: fabric({ map: tx.sleeve.tex, vertexColors: true }),
 		sleeveInner: new THREE.MeshStandardMaterial({ side: THREE.BackSide, roughness: 1 }),
 		collar: fabric({ map: tx.collar.tex, side: THREE.DoubleSide }),
 		pocket: fabric({ map: tx.pocket.tex }),
@@ -144,6 +187,7 @@ export function createThreeEngine(
 		placket: fabric({ map: tx.placket.tex }),
 		cuff: fabric({ map: tx.cuff.tex }),
 		roll: fabric({ map: tx.roll.tex }),
+		epaulet: fabric({ map: tx.epaulet.tex }),
 		zip: new THREE.MeshStandardMaterial({ map: tx.zip.tex, roughness: 0.45, metalness: 0.2 }),
 		metal: new THREE.MeshStandardMaterial({ color: 0x8c9198, roughness: 0.32, metalness: 0.85 }),
 		binding: fabric(),
@@ -161,17 +205,57 @@ export function createThreeEngine(
 
 	const weaveBase: Record<string, THREE.CanvasTexture> = {};
 
+	/** Pengali warna dasar kain (linear) ≈ 94% sRGB */
+	const ALBEDO = 0.86;
+
+	/** Serat benang tidak rata (slub) + bintik halus, dipakai sebagai overlay tipis di tekstur warna */
+	const grain = (() => {
+		const c = document.createElement('canvas');
+		c.width = c.height = 256;
+		const g = c.getContext('2d')!;
+		const img = g.createImageData(256, 256);
+		let seed = 7;
+		const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+		// Slub: variasi per-baris (benang pakan) + noise per-piksel
+		const row = Array.from({ length: 256 }, () => rnd() * 2 - 1);
+		for (let y = 0; y < 256; y++)
+			for (let x = 0; x < 256; x++) {
+				const v = 128 + row[y] * 9 + (rnd() * 2 - 1) * 20;
+				const i = (y * 256 + x) * 4;
+				img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+				img.data[i + 3] = 255;
+			}
+		g.putImageData(img, 0, 0);
+		return c;
+	})();
+
+	function applyGrain(ctx: CanvasRenderingContext2D, w: number, h: number, alpha = 0.06) {
+		const pat = ctx.createPattern(grain, 'repeat');
+		if (!pat) return;
+		ctx.save();
+		ctx.globalCompositeOperation = 'overlay';
+		ctx.globalAlpha = alpha;
+		ctx.fillStyle = pat;
+		ctx.fillRect(0, 0, w, h);
+		ctx.restore();
+	}
+
 	// Init renderer
 	renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
 	renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 	renderer.outputColorSpace = THREE.SRGBColorSpace;
 	renderer.toneMapping = THREE.NeutralToneMapping;
-	renderer.toneMappingExposure = 1.0;
+	renderer.toneMappingExposure = 1.12;
+	// Bayangan lembut: lengan & kerah membayangi badan, baju membayangi lantai
+	const isMobile = window.matchMedia('(max-width: 900px), (pointer: coarse)').matches;
+	renderer.shadowMap.enabled = true;
+	renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 	scene = new THREE.Scene();
 	const pmrem = new THREE.PMREMGenerator(renderer);
-	scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-	scene.environmentIntensity = 0.55;
+	scene.environment = pmrem.fromScene(studioEnvironment(), 0.035).texture;
+	scene.environmentIntensity = 1.0;
+	pmrem.dispose();
 
 	camera = new THREE.PerspectiveCamera(26, 1, 0.1, 50);
 	camera.position.set(0, 0.05, 4.6);
@@ -194,19 +278,47 @@ export function createThreeEngine(
 	});
 
 	scene.add(camera);
-	const keyLight = new THREE.DirectionalLight(0xffffff, 1.55);
+	// Lampu langsung tambahan di atas softbox environment: key (untuk bayangan) + rim tipis
+	const keyLight = new THREE.DirectionalLight(0xfffaf4, 1.15);
 	keyLight.position.set(-1.7, 3.0, 1.1);
+	keyLight.castShadow = true;
+	keyLight.shadow.mapSize.set(isMobile ? 1024 : 2048, isMobile ? 1024 : 2048);
+	keyLight.shadow.radius = 5;
+	keyLight.shadow.blurSamples = 16;
+	keyLight.shadow.bias = -0.0004;
+	keyLight.shadow.normalBias = 0.012;
+	Object.assign(keyLight.shadow.camera, { left: -1.3, right: 1.3, top: 1.3, bottom: -1.3, near: 0.5, far: 14 });
 	camera.add(keyLight);
+	scene.add(keyLight.target);
 
-	const fillLight = new THREE.DirectionalLight(0xffffff, 0.38);
-	fillLight.position.set(2.6, 0.2, 0.8);
-	camera.add(fillLight);
+	const rimLight = new THREE.DirectionalLight(0xffffff, 0.45);
+	rimLight.position.set(1.2, 1.6, -3.2);
+	camera.add(rimLight);
 
-	const topLight = new THREE.DirectionalLight(0xffffff, 0.3);
-	topLight.position.set(0, 4, 0);
-	scene.add(topLight);
+	/**
+	 * Tekstur anyaman terlalu halus untuk jarak pandang normal (muncul moiré),
+	 * jadi kekuatannya naik hanya saat pengguna zoom mendekat.
+	 */
+	let lastWeaveK = -1;
+	function syncWeaveDetail() {
+		const dist = camera.position.distanceTo(controls.target);
+		const k = clamp((fitDist * 0.92 - dist) / (fitDist * 0.45), 0, 1);
+		if (Math.abs(k - lastWeaveK) < 0.01) return;
+		lastWeaveK = k;
+		const f = lerp(0.12, 1, k);
+		for (const m of Object.values(mats) as THREE.MeshStandardMaterial[]) {
+			const base = m.userData?.weave;
+			if (base != null && m.normalMap) m.normalScale.setScalar(base * f);
+		}
+	}
 
-	scene.add(new THREE.HemisphereLight(0xffffff, 0x8f959b, 0.24));
+	/** Softbox environment ikut berputar bersama kamera — tiap sudut difoto dengan setelan lampu yang sama */
+	function syncEnvironment() {
+		scene.environmentRotation.y = Math.atan2(
+			camera.position.x - controls.target.x,
+			camera.position.z - controls.target.z
+		);
+	}
 
 	// Shadow blob
 	const sc2 = document.createElement('canvas');
@@ -234,7 +346,7 @@ export function createThreeEngine(
 	scene.add(shirt);
 
 	const aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-	for (const k of ['body', 'bump', 'sleeve', 'collar', 'pocket', 'flap', 'placket', 'cuff', 'roll'] as const) {
+	for (const k of ['body', 'bump', 'sleeve', 'collar', 'pocket', 'flap', 'placket', 'cuff', 'roll', 'epaulet'] as const) {
 		tx[k].tex.anisotropy = aniso;
 	}
 
@@ -260,11 +372,24 @@ export function createThreeEngine(
 		if (!w || !h) return;
 		renderer.setSize(w, h, false);
 		camera.aspect = w / h;
-		if (w / h < 1) camera.setViewOffset(w, h, 0, -h * 0.075, w, h);
+		// Pratinjau pendek (mobile): sisakan ruang untuk label di atas & tombol sudut di bawah
+		const compact = h < 520;
+		const padTop = compact ? 46 : 0,
+			padBot = compact ? 50 : 0,
+			frac = (h - padTop - padBot) / h;
+		if (compact) camera.setViewOffset(w, h, 0, -(padTop - padBot) / 2, w, h);
+		else if (w / h < 1) camera.setViewOffset(w, h, 0, -h * 0.075, w, h);
 		else camera.clearViewOffset();
 		camera.updateProjectionMatrix();
 		const tanH = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-		fitDist = Math.max(1.95 / (2 * tanH), 1.65 / (2 * tanH * camera.aspect)) + 0.25;
+		fitDist = Math.max((compact ? 1.72 : 1.95) / (2 * tanH * frac), 1.65 / (2 * tanH * camera.aspect)) + 0.25;
+		// Stage berubah tinggi signifikan (mis. tombol perbesar) → sesuaikan jarak kamera.
+		// Perubahan kecil (bilah URL mobile) diabaikan agar zoom pengguna tidak hilang.
+		if (lastH && Math.abs(h - lastH) / lastH > 0.15 && !camAnim) {
+			const rel = camera.position.clone().sub(controls.target);
+			camera.position.copy(controls.target).addScaledVector(rel.normalize(), fitDist);
+		}
+		lastH = h;
 		needsRender = true;
 	}
 
@@ -274,21 +399,65 @@ export function createThreeEngine(
 
 	function addMesh(geo: THREE.BufferGeometry, mat: THREE.Material) {
 		const m = new THREE.Mesh(geo, mat);
+		// Sisi dalam (BackSide) tidak ikut melempar bayangan agar tidak timbul shadow acne
+		m.castShadow = mat.side !== THREE.BackSide;
+		m.receiveShadow = true;
 		shirt.add(m);
 		return m;
 	}
 
-	function addButton(p: THREE.Vector3, n: THREE.Vector3) {
+	function addButton(p: THREE.Vector3, n: THREE.Vector3, parent: THREE.Object3D = shirt) {
 		const nn = n.clone().normalize();
 		const b = new THREE.Mesh(btnGeo, mats.button);
 		b.position.copy(p).addScaledVector(nn, 0.002);
 		b.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), nn);
-		shirt.add(b);
+		parent.add(b);
 
 		const r = new THREE.Mesh(btnRimGeo, mats.buttonRim);
 		r.position.copy(p).addScaledVector(nn, 0.0043);
 		r.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), nn);
-		shirt.add(r);
+		parent.add(r);
+	}
+
+	/**
+	 * Epolet (tali pundak) seperti seragam dinas: dari jahitan bahu ke arah kerah,
+	 * ujung dekat kerah meruncing dengan satu kancing.
+	 */
+	function buildEpaulets(T: TorsoObject) {
+		const g = new THREE.Group();
+		const vS = T.prof.vAt(T.prof.tOfY(0.492));
+		const I = 6,
+			J = 28,
+			HW = 0.04,
+			OFF = 0.0065;
+		for (const uC of [0, 0.5]) {
+			const vE = T.prof.vAt(T.tEnd(uC)) - 0.05 / T.prof.total;
+			const at = (i: number, j: number) => {
+				const f = j / J;
+				const taper = f < 0.82 ? 1 : lerp(1, 0.3, Math.pow((f - 0.82) / 0.18, 1.4));
+				const t = T.prof.tOfV(lerp(vS, vE, f)),
+					P = T.perimeterAt(t);
+				const u = uC + (((i / I) * 2 - 1) * HW * taper) / P;
+				const p = T.pos(u, t, [0, 0, 0]),
+					n = T.normal(u, t, [0, 0, 0]);
+				return { p: [p[0] + n[0] * OFF, p[1] + n[1] * OFF, p[2] + n[2] * OFF], n, uv: [i / I, f] };
+			};
+			const m = new THREE.Mesh(geomFromGrid(I, J, at), mats.epaulet);
+			m.castShadow = true;
+			m.receiveShadow = true;
+			g.add(m);
+			const tb = T.prof.tOfV(lerp(vS, vE, 0.86));
+			const bp = T.pos(uC, tb, [0, 0, 0]),
+				bn = T.normal(uC, tb, [0, 0, 0]);
+			addButton(
+				new THREE.Vector3(bp[0] + bn[0] * (OFF + 0.002), bp[1] + bn[1] * (OFF + 0.002), bp[2] + bn[2] * (OFF + 0.002)),
+				new THREE.Vector3(...bn),
+				g
+			);
+		}
+		g.visible = false;
+		shirt.add(g);
+		return g;
 	}
 
 	function disposeShirt() {
@@ -318,6 +487,7 @@ export function createThreeEngine(
 
 		const T = makeTorso(torsoConfig(pid));
 		curTorso = T;
+		epaulets = null;
 		curPlacketV = null;
 		const Pc = T.perimeterAt(T.prof.tOfY(0.2));
 
@@ -328,7 +498,7 @@ export function createThreeEngine(
 		addMesh(
 			tube(
 				closedCurve(f => T.pos(f, T.tStart(f), [0, 0, 0]), 160),
-				0.0045,
+				0.003,
 				220
 			),
 			mats.edgeBody
@@ -343,7 +513,11 @@ export function createThreeEngine(
 			const sleeveLen = c.len + c.startIn;
 			curSleeveLen = sleeveLen;
 			const rolled = P.sleeve === 'long' && state.sleeveStyle === 'gulung';
-			if (rolled) curSleeveLen = ROLL.s1 - 0.005 + c.startIn;
+			if (rolled) {
+				curSleeveLen = ROLL.s1 - 0.005 + c.startIn;
+				c.foldEnd = ROLL.s0 - 0.015; // lipatan berhenti sebelum gulungan
+				c.rolled = true;
+			}
 
 			for (const side of [1, -1]) {
 				const g = sleeveGeom(c, side, -c.startIn, rolled ? ROLL.s1 - 0.005 : c.len);
@@ -353,8 +527,7 @@ export function createThreeEngine(
 					const band = rollGeom(c, side, ROLL.s0, ROLL.s1, ROLL.extra);
 					addMesh(band, mats.roll);
 					addMesh(band, mats.sleeveInner);
-					addMesh(tube(sleeveRing(c, side, ROLL.s1, 1, 0.003), 0.0055, 90), mats.edgeCuff);
-					const th0 = Math.PI * 0.32,
+					const th0 = ROLL.tab,
 						sA = ROLL.s0 - 0.13,
 						sB = ROLL.s0 + 0.012;
 					const strap = geomFromGrid(
@@ -428,7 +601,10 @@ export function createThreeEngine(
 			setRepeat(mats.collar, 0.62 / 0.045, 0.12 / 0.045);
 			setRepeat(mats.collarOut, 0.62 / 0.045, 0.06 / 0.045);
 			setRepeat(mats.ribOut, 0.62 / 0.04, 1);
-			if (shirtK) addButton(col.button, new THREE.Vector3(0, 0.2, 1));
+			if (shirtK) {
+				addButton(col.button, new THREE.Vector3(0, 0.2, 1));
+				epaulets = buildEpaulets(T);
+			}
 		} else if (P.collar === 'stand') {
 			const Hc = 0.078,
 				R2 = 6;
@@ -573,6 +749,7 @@ export function createThreeEngine(
 			'placket',
 			'cuff',
 			'roll',
+			'epaulet',
 			'binding'
 		] as const) {
 			(mats[k] as THREE.MeshPhysicalMaterial).roughness = kind === 'taslan' ? 0.6 : 0.88;
@@ -597,22 +774,32 @@ export function createThreeEngine(
 			t.repeat.set(rep[0], rep[1]);
 			if (mat.normalMap) mat.normalMap.dispose();
 			mat.normalMap = t;
+			mat.userData.weave = scale;
 			mat.normalScale.set(scale, scale);
 			if (!had) mat.needsUpdate = true;
 		};
 
-		for (const k of ['body', 'sleeve', 'collar', 'collarOut', 'pocket', 'flap', 'placket', 'cuff', 'roll'] as const) {
+		for (const k of ['body', 'sleeve', 'collar', 'collarOut', 'pocket', 'flap', 'placket', 'cuff', 'roll', 'epaulet'] as const) {
 			assign(mats[k], kind, 0.4);
 		}
 		assign(mats.rib, knitTrim ? 'rib' : kind, 0.55);
 		assign(mats.ribOut, knitTrim ? 'rib' : kind, 0.55);
+		// Rib cukup kasar untuk tetap terlihat dari jauh — tidak ikut diredam
+		mats.rib.userData.weave = mats.ribOut.userData.weave = null;
+		lastWeaveK = -1;
 		needsRender = true;
 	}
 
-	function paintSimple(t: any, color: string, extra?: (ctx: CanvasRenderingContext2D, w: number, h: number) => void) {
+	function paintSimple(
+		t: any,
+		color: string,
+		extra?: (ctx: CanvasRenderingContext2D, w: number, h: number) => void,
+		grainy = true
+	) {
 		const { ctx, c } = t;
 		ctx.fillStyle = color;
 		ctx.fillRect(0, 0, c.width, c.height);
+		if (grainy) applyGrain(ctx, c.width, c.height);
 		if (extra) extra(ctx, c.width, c.height);
 		t.tex.needsUpdate = true;
 	}
@@ -707,6 +894,8 @@ export function createThreeEngine(
 			}
 		}
 
+		applyGrain(ctx, W, H);
+
 		// Inner sleeve shadow
 		const g = ctx.createLinearGradient(0, 0, W, 0);
 		g.addColorStop(0, 'rgba(0,0,0,0)');
@@ -723,7 +912,7 @@ export function createThreeEngine(
 		if (P.sleeve === 'long' && state.sleeveStyle === 'gulung') {
 			const sA = ROLL.s0 - 0.13,
 				sB = ROLL.s0 + 0.012,
-				uC = 0.16 * W,
+				uC = (((ROLL.tab / TAU) % 1) + 1) % 1 * W,
 				hw = (0.016 / (c0.r0 * 0.95 * TAU)) * W;
 			softPath(
 				ctx,
@@ -741,31 +930,11 @@ export function createThreeEngine(
 				blur: 12
 			});
 		}
-		if (P.sleeve === 'long') {
-			for (const [s, a] of [
-				[0.46, 0.2],
-				[0.52, 0.16],
-				[0.58, 0.14],
-				[0.86, 0.12],
-				[0.93, 0.14]
-			]) {
-				const pts: number[][] = [];
-				for (let k = 0; k <= 12; k++) {
-					const x = (k / 12) * W;
-					pts.push([x, yOf(s * c0.len) + Math.sin(k * 1.3 + s * 20) * 10]);
-				}
-				softPath(
-					ctx,
-					pts.filter((p, i) => i > 1 && i < 11),
-					{ width: 5, color: `rgba(0,0,0,${a})`, blur: 12 }
-				);
-			}
-		} else {
+		// Lengan panjang: lipatan kini dibentuk geometri, tidak dilukis lagi
+		if (P.sleeve !== 'long' && P.sleeve !== 'polo') {
 			const hemS = c0.len - 0.035;
-			if (P.sleeve !== 'polo') {
-				softPath(ctx, [[0, yOf(hemS)], [W, yOf(hemS)]], { width: 3, color: 'rgba(0,0,0,.22)', blur: 5 });
-				dashed(ctx, [[0, yOf(c0.len - 0.024)], [W, yOf(c0.len - 0.024)]], stitchOf(color), 2.2, [7, 5]);
-			}
+			softPath(ctx, [[0, yOf(hemS)], [W, yOf(hemS)]], { width: 3, color: 'rgba(0,0,0,.22)', blur: 5 });
+			dashed(ctx, [[0, yOf(c0.len - 0.024)], [W, yOf(c0.len - 0.024)]], stitchOf(color), 2.2, [7, 5]);
 		}
 		tx.sleeve.tex.needsUpdate = true;
 	}
@@ -844,13 +1013,17 @@ export function createThreeEngine(
 		const cx = ((d.side === 'front' ? 0.25 : 0.75) + d.s / P) * TW;
 		const cy = (1 - T.prof.vAt(t)) * TH;
 		const k = +s.size || 1;
-		const lines = String(s.text || '')
-			.split('\n')
-			.map(x => x.trim())
-			.filter(Boolean)
-			.slice(0, 3);
-		const logo = s.logo ? userLogo || placeholderLogo(color) : null;
-		const extra = d.extraH && extraImg ? extraImg : null;
+		// Kaos & polo: hanya logo — teks & gambar tambahan diabaikan
+		const logoOnly = !!PRODUCTS[state.product].logoOnly;
+		const lines = logoOnly
+			? []
+			: String(s.text || '')
+					.split('\n')
+					.map(x => x.trim())
+					.filter(Boolean)
+					.slice(0, 3);
+		const logo = s.logo || logoOnly ? userLogo || placeholderLogo(color) : null;
+		const extra = !logoOnly && d.extraH && extraImg ? extraImg : null;
 
 		const fit = (img: HTMLCanvasElement, h: number, maxW: number) => {
 			let w = (h * img.width) / img.height;
@@ -1212,6 +1385,7 @@ export function createThreeEngine(
 			hem.push([x, (1 - T.prof.vAt(T.tStart(u))) * TH - 0.028 * pxV]);
 		}
 		dashed(ctx, hem, stitchOf(pc.body), 2.4, [8, 6]);
+		applyGrain(ctx, TW, TH);
 
 		// Slot logo dan tulisan
 		const P = PRODUCTS[state.product];
@@ -1260,7 +1434,7 @@ export function createThreeEngine(
 			ctx.fillStyle = 'rgba(255,255,255,.08)';
 			ctx.fillRect(0, 0, 3, h);
 			ctx.fillRect(w - 3, 0, 3, h);
-		});
+		}, false);
 
 		paintSimple(tx.pocket, pc.pocket, (ctx, w, h) => {
 			const s = stitchOf(pc.pocket);
@@ -1379,12 +1553,43 @@ export function createThreeEngine(
 			dashed(ctx, [[0, h - 14], [w, h - 14]], stitchOf(pc.cuff), 2, [7, 5]);
 		});
 
-		paintSimple(tx.roll, pc.cuff, (ctx, w, h) => {
-			softPath(ctx, [[0, h * 0.5 + 2], [w, h * 0.5 + 2]], { width: 4, color: 'rgba(0,0,0,.42)', blur: 5 });
-			ctx.fillStyle = 'rgba(255,255,255,.16)';
-			ctx.fillRect(0, h * 0.5 - 7, w, 4);
-			dashed(ctx, [[0, h * 0.2], [w, h * 0.2]], stitchOf(pc.cuff), 1.8, [7, 5]);
-			dashed(ctx, [[0, h * 0.8], [w, h * 0.8]], stitchOf(pc.cuff), 1.8, [7, 5]);
+		// Pita gulungan: badan pita = kain lengan (terbalik), strip atas = tepi manset yang menyembul.
+		// Kanvas di-flipY: baris atas = tepi bawah pita (f = 1), baris bawah = tepi atas (f = 0).
+		if (epaulets) epaulets.visible = !!pc.pat.epaulet;
+		paintSimple(tx.epaulet, pc.collar, (ctx, w, h) => {
+			// v = 0 di jahitan bahu (bawah kanvas), v = 1 di ujung runcing dekat kerah (atas kanvas)
+			const s = stitchOf(pc.collar);
+			dashed(ctx, [[10, h], [10, h * 0.2], [w / 2, 10], [w - 10, h * 0.2], [w - 10, h]], s, 2.2, [7, 5]);
+			const g = ctx.createLinearGradient(0, 0, w, 0);
+			g.addColorStop(0, 'rgba(0,0,0,.18)');
+			g.addColorStop(0.2, 'rgba(255,255,255,.05)');
+			g.addColorStop(0.8, 'rgba(255,255,255,.05)');
+			g.addColorStop(1, 'rgba(0,0,0,.18)');
+			ctx.fillStyle = g;
+			ctx.fillRect(0, 0, w, h);
+			softPath(ctx, [[0, h - 3], [w, h - 3]], { width: 4, color: 'rgba(0,0,0,.25)', blur: 6 });
+		});
+
+		paintSimple(tx.roll, pc.sleeve, (ctx, w, h) => {
+			const yF = (f: number) => (1 - f) * h;
+			ctx.fillStyle = pc.cuff;
+			ctx.fillRect(0, yF(ROLL.cuffEdge), w, h - yF(ROLL.cuffEdge));
+			dashed(ctx, [[0, yF(0.085)], [w, yF(0.085)]], stitchOf(pc.cuff), 1.6, [6, 4]);
+			// bayangan di bawah tepi manset (lapisan pita menutupinya)
+			softPath(ctx, [[0, yF(ROLL.cuffEdge + 0.02)], [w, yF(ROLL.cuffEdge + 0.02)]], {
+				width: 3,
+				color: 'rgba(0,0,0,.3)',
+				blur: 5
+			});
+			// kain tertekuk di kedua tepi lipat
+			const g = ctx.createLinearGradient(0, 0, 0, h);
+			g.addColorStop(0, 'rgba(0,0,0,.22)');
+			g.addColorStop(0.09, 'rgba(0,0,0,0)');
+			g.addColorStop(0.5, 'rgba(255,255,255,.05)');
+			g.addColorStop(0.95, 'rgba(0,0,0,0)');
+			g.addColorStop(1, 'rgba(0,0,0,.25)');
+			ctx.fillStyle = g;
+			ctx.fillRect(0, 0, w, h);
 		});
 
 		for (const [m, col] of [
@@ -1396,21 +1601,23 @@ export function createThreeEngine(
 			[mats.flap, pc.flap],
 			[mats.placket, pc.placket],
 			[mats.cuff, pc.cuff],
-			[mats.roll, pc.cuff]
+			[mats.roll, pc.sleeve],
+			[mats.epaulet, pc.collar]
 		] as const) {
-			m.color.set('#ffffff');
+			// Albedo kain asli tak pernah 100% — cegah putih "gosong" & tetap terlihat lipatannya
+			m.color.setScalar(ALBEDO);
 			(m as THREE.MeshPhysicalMaterial).sheenColor.set(mix(col, '#ffffff', 0.35));
 		}
 
 		for (const m of [mats.rib, mats.ribOut]) {
-			m.color.set(pc.rib);
+			m.color.set(pc.rib).multiplyScalar(ALBEDO);
 			(m as THREE.MeshPhysicalMaterial).sheenColor.set(mix(pc.rib, '#ffffff', 0.35));
 		}
 
 		mats.collarIn.color.set(
 			vestP ? state.look.rompi.lining || '#1c1d20' : PRODUCTS[state.product].collar === 'polo' ? pc.rib : pc.collar
 		);
-		mats.binding.color.set(pc.collar);
+		mats.binding.color.set(pc.collar).multiplyScalar(ALBEDO);
 		mats.binding.sheenColor.set(mix(pc.collar, '#ffffff', 0.35));
 
 		for (const [k, col] of [
@@ -1419,7 +1626,7 @@ export function createThreeEngine(
 			['edgeCollar', pc.collar],
 			['edgeCuff', pc.cuff]
 		] as const) {
-			mats[k].color.set(col);
+			mats[k].color.set(col).multiplyScalar(ALBEDO);
 			mats[k].sheenColor.set(mix(col, '#ffffff', 0.35));
 		}
 
@@ -1478,6 +1685,7 @@ export function createThreeEngine(
 		camera.lookAt(controls.target);
 
 		if (measureGroup) measureGroup.visible = false;
+		syncEnvironment();
 		renderer.render(scene, camera);
 		const url = renderer.domElement.toDataURL('image/png');
 		if (measureGroup) measureGroup.visible = true;
@@ -1600,6 +1808,8 @@ export function createThreeEngine(
 		}
 		const moved = controls.update();
 		if (moved || needsRender) {
+			syncEnvironment();
+			syncWeaveDetail();
 			renderer.render(scene, camera);
 			needsRender = false;
 		}

@@ -82,6 +82,7 @@ export const PRODUCTS: Record<ProductKey, ProductConfig> = {
 	},
 	kaos: {
 		name: 'Kaos',
+		logoOnly: true,
 		sleeve: 'tee',
 		collar: 'crew',
 		placket: 'none',
@@ -107,6 +108,7 @@ export const PRODUCTS: Record<ProductKey, ProductConfig> = {
 	},
 	polo: {
 		name: 'Kaos Polo',
+		logoOnly: true,
 		sleeve: 'polo',
 		collar: 'polo',
 		placket: 'polo',
@@ -176,7 +178,8 @@ export const SLOT_DEFS: Record<SlotKey, SlotDefinition> = {
 		side: 'front',
 		s: 0.18,
 		y: 0.378,
-		logoH: 0.058,
+		// 8,5 cm: ukuran umum logo bordir dada untuk logo bertumpuk (ikon di atas teks)
+		logoH: 0.085,
 		textH: 0.028,
 		maxW: 0.19
 	},
@@ -186,7 +189,8 @@ export const SLOT_DEFS: Record<SlotKey, SlotDefinition> = {
 		side: 'front',
 		s: -0.18,
 		y: 0.378,
-		logoH: 0.058,
+		// 8,5 cm: ukuran umum logo bordir dada untuk logo bertumpuk (ikon di atas teks)
+		logoH: 0.085,
 		textH: 0.028,
 		maxW: 0.19
 	},
@@ -216,6 +220,7 @@ export const SLOT_DEFS: Record<SlotKey, SlotDefinition> = {
 
 export const SWATCHES: [name: string, hex: string][] = [
 	['Putih', '#f6f6f2'],
+	['Oranye Indah', '#e35a12'],
 	['Hitam', '#1c1d20'],
 	['Navy', '#1f2c4c'],
 	['Biru Benhur', '#2b5aa8'],
@@ -232,7 +237,8 @@ export const SWATCHES: [name: string, hex: string][] = [
 	['Hijau Botol', '#1d5a45'],
 	['Tosca', '#1c9893'],
 	['Khaki', '#b8a27b'],
-	['Cokelat', '#6b4a33']
+	['Cokelat', '#6b4a33'],
+	['Cokelat Tua', '#4a2f24']
 ];
 
 export const THREADS: [name: string, hex: string][] = [
@@ -269,6 +275,7 @@ export const PATTERNS: PatternItem[] = [
 	{ id: 'lengan', group: 'dasar', name: 'Lengan kontras', desc: 'Seperti katalog: lengan, kerah, saku', sleeve: 1, trim: 1, pocket: 1, catalog: true },
 	{ id: 'kerahSaku', group: 'dasar', name: 'Kerah & saku', desc: 'Lengan tetap warna badan', sleeve: 0, trim: 1, pocket: 1 },
 	{ id: 'plaket', group: 'dasar', name: 'Plaket kontras', desc: 'Plaket kancing, kerah, tutup saku', sleeve: 0, trim: 1, pocket: 0, placket: 1 },
+	{ id: 'dinas', group: 'dasar', name: 'Seragam dinas', desc: 'Kerah, plaket, saku, manset & epolet', sleeve: 0, trim: 1, pocket: 1, placket: 1, epaulet: true },
 	{ id: 'sport3', group: 'sport', name: 'Raglan + list', desc: '3 warna: pundak lengkung, list, sisi', sleeve: 1, trim: 0, pocket: 0, body: 'sport3', c3: true },
 	{ id: 'sport2', group: 'sport', name: 'Pundak & sisi lengkung', desc: '2 warna: pundak-lengan atas, sisi', sleeve: 0, trim: 0, pocket: 0, body: 'sport2', sleeveSplit: true },
 	{ id: 'sisiLengkung', group: 'sport', name: 'Sisi lengkung', desc: 'Panel sisi melebar ke bawah', sleeve: 1, trim: 1, pocket: 0, body: 'sideCurve' },
@@ -305,6 +312,7 @@ export const patternOf = (id: string) => PATTERNS.find(p => p.id === id) || PATT
 export const SAMPLE_LOOKS: Record<string, Partial<{ body: string; accent: string; accent2: string; lining: string }>> = {
 	sport3: { body: '#1c1d20', accent: '#45484d', accent2: '#c8ccce' },
 	sport2: { body: '#efece2', accent: '#1f2c4c' },
+	dinas: { body: '#f6f6f2', accent: '#4a2f24' },
 	vestRefleks: { body: '#1f2c4c', lining: '#1c1d20' }
 };
 
@@ -346,21 +354,22 @@ export const DEFAULT_STATE: UniformState = {
 		rompi: 'taslan'
 	},
 	look: {
-		// INDAH EXPRESS: putih body + orange aksen — DIKUNCI oleh client-config
-		kemeja: { pattern: 'lengan', body: '#FFFFFF', accent: '#E35A12', accent2: '#c8ccce', button: 'accent' },
-		kemejaPanjang: { pattern: 'lengan', body: '#FFFFFF', accent: '#E35A12', accent2: '#c8ccce', button: 'accent' },
-		kaos: { pattern: 'polos', body: '#FFFFFF', accent: '#E35A12', accent2: '#c8ccce', button: 'auto' },
-		polo: { pattern: 'polos', body: '#FFFFFF', accent: '#E35A12', accent2: '#c8ccce', button: 'accent' },
+		// INDAH EXPRES: kemeja dasar putih + aksen oranye, kaos dasar oranye (bisa diganti user)
+		kemeja: { pattern: 'lengan', body: '#f6f6f2', accent: '#e35a12', accent2: '#c8ccce', button: 'accent' },
+		kemejaPanjang: { pattern: 'lengan', body: '#f6f6f2', accent: '#e35a12', accent2: '#c8ccce', button: 'accent' },
+		kaos: { pattern: 'polos', body: '#e35a12', accent: '#f6f6f2', accent2: '#c8ccce', button: 'auto' },
+		polo: { pattern: 'polos', body: '#f6f6f2', accent: '#e35a12', accent2: '#c8ccce', button: 'accent' },
 		rompi: {
 			pattern: 'vestRefleks',
-			body: '#FFFFFF',
-			accent: '#E35A12',
+			body: '#f6f6f2',
+			accent: '#e35a12',
 			accent2: '#c8ccce',
 			button: 'auto',
 			lining: '#E35A12'
 		}
 	},
 	logoSrc: null,
+	productLogo: {},
 	removeWhite: true,
 	slotOn: {
 		kemeja: { dadaKiri: true, dadaKanan: true, depan: false, punggung: true },
@@ -392,7 +401,9 @@ export const DEFAULT_STATE: UniformState = {
 	height: ''
 };
 
-export const STORE_KEY = 'studio-seragam-v4';
+export const STORE_KEY = 'studio-seragam-v5';
+/** Kunci lama: data dimigrasi tanpa `look` karena dulu warna dikunci putih semua */
+export const LEGACY_STORE_KEY = 'studio-seragam-v4';
 
 /* ---------- Color Math Helpers ---------- */
 export const clamp = (x: number, a: number, b: number) => Math.min(b, Math.max(a, x));

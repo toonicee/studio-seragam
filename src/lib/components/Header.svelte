@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { isSupabaseConfigured } from '$lib/supabase/client';
+	import { CLIENT_CONFIG } from '$lib/client-config';
 
 	let {
 		onOpenMockup,
@@ -18,11 +19,7 @@
 	<div class="brand">
 		<!-- Logo Indah Express -->
 		<a href="/katalog" class="client-logo" title="Lihat Katalog Seragam Indah Expres">
-			<svg viewBox="0 0 52 52" width="42" height="42" fill="none">
-				<circle cx="26" cy="26" r="26" fill="#E35A12"/>
-				<!-- Panah kanan -->
-				<path d="M13 26 H35 M27 16 L37 26 L27 36" stroke="white" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-			</svg>
+			<img src={CLIENT_CONFIG.markUrl} alt="Indah Expres" width="42" height="42" />
 		</a>
 		<div class="brand-text">
 			<h1 class="brand-title">Studio Seragam</h1>
@@ -133,6 +130,12 @@
 		border-radius: 50%;
 		transition: transform 0.2s ease, box-shadow 0.2s ease;
 		box-shadow: 0 2px 8px rgba(227, 90, 18, 0.3);
+	}
+
+	.client-logo img {
+		display: block;
+		width: 100%;
+		height: 100%;
 	}
 
 	.client-logo:hover {
@@ -257,18 +260,51 @@
 		background: var(--sheet-2, #f0f3f5);
 	}
 
-	@media (max-width: 600px) {
-		.brand-subtitle,
-		.db-text {
+	@media (max-width: 900px) {
+		.app-header {
+			padding: 6px 8px 6px 10px;
+			margin-bottom: 8px;
+		}
+
+		.db-badge {
 			display: none;
+		}
+	}
+
+	@media (max-width: 600px) {
+		.brand {
+			gap: 10px;
+		}
+
+		.client-logo,
+		.client-logo img {
+			width: 34px;
+			height: 34px;
+		}
+
+		.brand-title {
+			font-size: 18px;
+		}
+
+		.brand-subtitle {
+			display: none;
+		}
+
+		.header-actions {
+			gap: 6px;
 		}
 
 		.btn-header span {
 			display: none;
 		}
 
-		.btn-header {
-			padding: 8px;
+		/* Tap target minimal 40px */
+		.btn-header,
+		.theme-toggle {
+			width: 40px;
+			height: 40px;
+			padding: 0;
+			justify-content: center;
 		}
 	}
 </style>

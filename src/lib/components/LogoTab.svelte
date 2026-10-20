@@ -2,13 +2,17 @@
 	import { uniformStore } from '$lib/stores/uniform.svelte';
 	import { SLOT_DEFS, FONTS, THREADS } from '$lib/constants/catalog';
 	import { placeholderLogo } from '$lib/three/textures';
-	import type { SlotKey } from '$lib/types/uniform';
+	import { CLIENT_CONFIG } from '$lib/client-config';
+
+	// Kaos & polo: cukup unggah logo. Produk lain memakai logo klien yang terkunci.
+	const logoOnly = $derived(Boolean(uniformStore.currentProduct.logoOnly));
+	const canUpload = $derived(logoOnly || !CLIENT_CONFIG.lockLogo);
 
 	let fileInputEl = $state<HTMLInputElement>();
 	let extraInputEl = $state<HTMLInputElement>();
 
 	function getThumbSrc(): string {
-		const canvas = uniformStore.userLogoCanvas || placeholderLogo('#1b2129');
+		const canvas = uniformStore.activeLogoCanvas || placeholderLogo('#1b2129');
 		try {
 			return canvas.toDataURL();
 		} catch {
@@ -65,45 +69,58 @@
 <div class="tabpanel">
 	<!-- Logo Box Upload -->
 	<div class="sec">
-		<h2 class="h">Logo &amp; teks</h2>
+		<h2 class="h">{logoOnly ? 'Logo' : 'Logo & teks'}</h2>
 		<div class="logo-box">
 			<div class="logo-thumb">
 				<img src={getThumbSrc()} alt="Pratinjau logo seragam" />
 			</div>
 			<div class="logo-actions">
-				<div class="btn-row">
-					<label class="btn-ink btn-sm" for="logoFileInput">Unggah logo</label>
-					<input
-						bind:this={fileInputEl}
-						type="file"
-						id="logoFileInput"
-						class="vh"
-						accept="image/png,image/jpeg,image/svg+xml,image/webp"
-						onchange={handleLogoUpload}
-					/>
-					{#if uniformStore.state.logoSrc}
-						<button
-							type="button"
-							class="btn-line btn-sm"
-							onclick={() => uniformStore.setLogo(null)}
-						>
-							Pakai logo contoh
-						</button>
-					{/if}
-				</div>
-				<label class="chk">
-					<input
-						type="checkbox"
-						checked={uniformStore.state.removeWhite}
-						onchange={(e) => uniformStore.setRemoveWhite(e.currentTarget.checked)}
-					/>
-					<span>Hapus latar putih otomatis</span>
-				</label>
-				<span class="note">
-					{uniformStore.state.logoSrc
-						? 'Logo kustom Anda aktif di semua posisi seragam.'
-						: 'Masih memakai logo placeholder. Unggah file PNG transparan untuk hasil terbaik.'}
-				</span>
+				{#if canUpload}
+					<div class="btn-row">
+						<label class="btn-ink btn-sm" for="logoFileInput">
+							{uniformStore.hasProductLogo ? 'Ganti logo' : 'Unggah logo'}
+						</label>
+						<input
+							bind:this={fileInputEl}
+							type="file"
+							id="logoFileInput"
+							class="vh"
+							accept="image/png,image/jpeg,image/svg+xml,image/webp"
+							onchange={handleLogoUpload}
+						/>
+						{#if logoOnly ? uniformStore.hasProductLogo : uniformStore.state.logoSrc}
+							<button
+								type="button"
+								class="btn-line btn-sm"
+								onclick={() => uniformStore.setLogo(null)}
+							>
+								{logoOnly ? `Pakai logo ${CLIENT_CONFIG.name}` : 'Pakai logo contoh'}
+							</button>
+						{/if}
+					</div>
+					<label class="chk">
+						<input
+							type="checkbox"
+							checked={uniformStore.state.removeWhite}
+							onchange={(e) => uniformStore.setRemoveWhite(e.currentTarget.checked)}
+						/>
+						<span>Hapus latar putih otomatis</span>
+					</label>
+					<span class="note">
+						{#if logoOnly}
+							{uniformStore.hasProductLogo
+								? 'Logo Anda dipakai di semua posisi yang aktif.'
+								: `Masih memakai logo ${CLIENT_CONFIG.name}. Unggah PNG transparan untuk menggantinya.`}
+						{:else}
+							{uniformStore.state.logoSrc
+								? 'Logo kustom Anda aktif di semua posisi seragam.'
+								: 'Masih memakai logo placeholder. Unggah file PNG transparan untuk hasil terbaik.'}
+						{/if}
+					</span>
+				{:else}
+					<b class="locked">Logo resmi {CLIENT_CONFIG.name}</b>
+					<span class="note">Logo sudah ditetapkan untuk model ini dan dibordir sesuai posisi di bawah.</span>
+				{/if}
 			</div>
 		</div>
 
@@ -150,107 +167,109 @@
 						</label>
 						<div>
 							<b>{d.label}</b>
-							<small>{d.hint}</small>
+							<small>{logoOnly ? 'Logo' : d.hint}</small>
 						</div>
 					</div>
 
 					{#if on}
 						<div class="slot-body">
-							<label class="chk">
-								<input
-									type="checkbox"
-									checked={s.logo}
-									onchange={(e) => uniformStore.setSlotProp(id, 'logo', e.currentTarget.checked)}
-								/>
-								<span>Tampilkan logo</span>
-							</label>
-
-							<label class="fld">
-								<span>Teks</span>
-								{#if d.multi}
-									<textarea
-										rows="2"
-										maxlength="60"
-										placeholder="Mis. alamat website perusahaan"
-										value={s.text}
-										oninput={(e) => uniformStore.setSlotProp(id, 'text', e.currentTarget.value)}
-									></textarea>
-								{:else}
+							{#if !logoOnly}
+								<label class="chk">
 									<input
-										type="text"
-										maxlength="28"
-										placeholder={id === 'dadaKanan' ? 'Nama karyawan' : 'Opsional'}
-										value={s.text}
-										oninput={(e) => uniformStore.setSlotProp(id, 'text', e.currentTarget.value)}
+										type="checkbox"
+										checked={s.logo}
+										onchange={(e) => uniformStore.setSlotProp(id, 'logo', e.currentTarget.checked)}
 									/>
-								{/if}
-							</label>
-
-							{#if d.extraH}
-								<div class="fld">
-									<span>Gambar tambahan di bawah teks</span>
-									<div class="extra-row">
-										{#if uniformStore.extraImgCanvas}
-											<span class="extra-thumb">
-												<img src={getExtraThumbSrc()} alt="Gambar tambahan" />
-											</span>
-										{/if}
-										<label class="btn-line btn-sm" for="extraFileInput">
-											{uniformStore.extraImgCanvas ? 'Ganti gambar' : 'Unggah gambar'}
-										</label>
-										<input
-											bind:this={extraInputEl}
-											type="file"
-											id="extraFileInput"
-											class="vh"
-											accept="image/png,image/jpeg,image/svg+xml,image/webp"
-											onchange={handleExtraUpload}
-										/>
-										{#if uniformStore.extraImgCanvas}
-											<button
-												type="button"
-												class="btn-line btn-sm"
-												onclick={() => uniformStore.setExtraImage(null)}
-											>
-												Hapus
-											</button>
-										{/if}
-									</div>
-									<small class="note">Mis. gambar badge sertifikasi ISO atau App Store seperti katalog.</small>
-								</div>
-							{/if}
-
-							<div class="row2">
-								<label class="fld">
-									<span>Jenis Huruf</span>
-									<select
-										value={s.font}
-										onchange={(e) => uniformStore.setSlotProp(id, 'font', e.currentTarget.value)}
-									>
-										{#each Object.entries(FONTS) as [k, f]}
-											<option value={k}>{f.label}</option>
-										{/each}
-									</select>
+									<span>Tampilkan logo</span>
 								</label>
 
-								<div class="fld">
-									<span>Warna {isBordir ? 'benang' : 'tinta'}</span>
-									<div class="swatches sm">
-										{#each THREADS as [name, hex]}
-											{@const active = s.color.toLowerCase() === hex.toLowerCase()}
-											<button
-												type="button"
-												class="sw-btn {hex === 'auto' ? 'sw-auto' : ''}"
-												style="--c: {hex === 'auto' ? uniformStore.look.accent : hex}"
-												aria-pressed={active}
-												aria-label={name}
-												title={name}
-												onclick={() => uniformStore.setSlotProp(id, 'color', hex)}
-											></button>
-										{/each}
+								<label class="fld">
+									<span>Teks</span>
+									{#if d.multi}
+										<textarea
+											rows="2"
+											maxlength="60"
+											placeholder="Mis. alamat website perusahaan"
+											value={s.text}
+											oninput={(e) => uniformStore.setSlotProp(id, 'text', e.currentTarget.value)}
+										></textarea>
+									{:else}
+										<input
+											type="text"
+											maxlength="28"
+											placeholder={id === 'dadaKanan' ? 'Nama karyawan' : 'Opsional'}
+											value={s.text}
+											oninput={(e) => uniformStore.setSlotProp(id, 'text', e.currentTarget.value)}
+										/>
+									{/if}
+								</label>
+
+								{#if d.extraH}
+									<div class="fld">
+										<span>Gambar tambahan di bawah teks</span>
+										<div class="extra-row">
+											{#if uniformStore.extraImgCanvas}
+												<span class="extra-thumb">
+													<img src={getExtraThumbSrc()} alt="Gambar tambahan" />
+												</span>
+											{/if}
+											<label class="btn-line btn-sm" for="extraFileInput">
+												{uniformStore.extraImgCanvas ? 'Ganti gambar' : 'Unggah gambar'}
+											</label>
+											<input
+												bind:this={extraInputEl}
+												type="file"
+												id="extraFileInput"
+												class="vh"
+												accept="image/png,image/jpeg,image/svg+xml,image/webp"
+												onchange={handleExtraUpload}
+											/>
+											{#if uniformStore.extraImgCanvas}
+												<button
+													type="button"
+													class="btn-line btn-sm"
+													onclick={() => uniformStore.setExtraImage(null)}
+												>
+													Hapus
+												</button>
+											{/if}
+										</div>
+										<small class="note">Mis. gambar badge sertifikasi ISO atau App Store seperti katalog.</small>
+									</div>
+								{/if}
+
+								<div class="row2">
+									<label class="fld">
+										<span>Jenis Huruf</span>
+										<select
+											value={s.font}
+											onchange={(e) => uniformStore.setSlotProp(id, 'font', e.currentTarget.value)}
+										>
+											{#each Object.entries(FONTS) as [k, f]}
+												<option value={k}>{f.label}</option>
+											{/each}
+										</select>
+									</label>
+
+									<div class="fld">
+										<span>Warna {isBordir ? 'benang' : 'tinta'}</span>
+										<div class="swatches sm">
+											{#each THREADS as [name, hex]}
+												{@const active = s.color.toLowerCase() === hex.toLowerCase()}
+												<button
+													type="button"
+													class="sw-btn {hex === 'auto' ? 'sw-auto' : ''}"
+													style="--c: {hex === 'auto' ? uniformStore.look.accent : hex}"
+													aria-pressed={active}
+													aria-label={name}
+													title={name}
+													onclick={() => uniformStore.setSlotProp(id, 'color', hex)}
+												></button>
+											{/each}
+										</div>
 									</div>
 								</div>
-							</div>
+							{/if}
 
 							<div class="row2">
 								<label class="fld">
@@ -318,6 +337,11 @@
 		margin: 0;
 		font-size: 13px;
 		color: var(--ink-2, #4d5a66);
+	}
+
+	.locked {
+		font-size: 14px;
+		color: var(--ink, #17202a);
 	}
 
 	.logo-box {

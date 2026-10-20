@@ -35,7 +35,7 @@
 		<span class="tape-status">{statusText()}</span>
 	</div>
 	<button type="button" class="btn-tape" onclick={onOpenMockup}>
-		Lihat Mockup & Order
+		<span class="long">Lihat&nbsp;</span>Mockup & Order
 	</button>
 </footer>
 
@@ -109,17 +109,26 @@
 
 	@media (max-width: 600px) {
 		.tape {
-			padding: 16px 14px calc(10px + env(safe-area-inset-bottom, 0px)) 14px;
+			padding: 11px 12px calc(8px + env(safe-area-inset-bottom, 0px)) 14px;
+		}
+		.tape-qty,
+		.long {
+			display: none;
+		}
+		.tape::before {
+			height: 7px;
 		}
 		.tape-total {
-			font-size: 22px;
+			font-size: 20px;
 		}
 		.tape-status {
-			font-size: 11.5px;
+			font-size: 11px;
+			line-height: 1.25;
 		}
 		.btn-tape {
-			padding: 8px 12px;
-			font-size: 13px;
+			min-height: 44px;
+			padding: 0 14px;
+			font-size: 14px;
 		}
 	}
 </style>

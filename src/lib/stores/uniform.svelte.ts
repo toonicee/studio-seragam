@@ -1,6 +1,7 @@
 import {
 	DEFAULT_STATE,
 	STORE_KEY,
+	LEGACY_STORE_KEY,
 	PRODUCTS,
 	SLOT_DEFS,
 	FONTS,
@@ -28,6 +29,8 @@ export class UniformStore {
 	isSaving = $state(false);
 
 	userLogoCanvas = $state<HTMLCanvasElement | null>(null);
+	/** Logo unggahan untuk produk `logoOnly` (kaos, polo) */
+	productLogoCanvas = $state<Partial<Record<ProductKey, HTMLCanvasElement | null>>>({});
 	extraImgCanvas = $state<HTMLCanvasElement | null>(null);
 
 	toasts = $state<{ id: number; message: string; type: 'info' | 'success' | 'warn' }[]>([]);
@@ -38,6 +41,7 @@ export class UniformStore {
 			this.loadFromLocalStorage();
 			// Selalu enforce warna klien setelah load dari storage
 			this.enforceClientColors();
+			this.enforcePlainProducts();
 			this.initLogos();
 		}
 	}
@@ -53,22 +57,31 @@ export class UniformStore {
 		}
 	}
 
+	/** Kaos & polo tidak punya pilihan pola: selalu polos */
+	private enforcePlainProducts() {
+		for (const pid of Object.keys(PRODUCTS) as ProductKey[]) {
+			if (PRODUCTS[pid].logoOnly && this.state.look[pid]) this.state.look[pid].pattern = 'polos';
+		}
+	}
+
 	async initLogos() {
 		// Auto-preload logo Indah Express jika lockLogo aktif
 		if (CLIENT_CONFIG.lockLogo) {
 			try {
-				const logoB64 = CLIENT_CONFIG.logoBase64;
-				this.state.logoSrc = logoB64;
-				// Pastikan slot dada kiri aktif & punya logo
+				const logoUrl = CLIENT_CONFIG.logoUrl;
+				this.state.logoSrc = logoUrl;
+				// Pastikan logo tampil: aktifkan dada kiri hanya jika produk belum punya posisi logo
+				// yang menyala (mis. kaos sudah pakai "depan tengah" → jangan dobel logo)
 				const slot = CLIENT_CONFIG.defaultLogoSlot;
 				const products = Object.keys(this.state.slotOn) as ProductKey[];
 				for (const pid of products) {
-					if (this.state.slotOn[pid]) {
-						this.state.slotOn[pid][slot] = true;
-					}
+					const on = this.state.slotOn[pid];
+					if (!on || !PRODUCTS[pid].slots.includes(slot)) continue;
+					const hasLogo = PRODUCTS[pid].slots.some(id => on[id] && this.state.slots[id].logo);
+					if (!hasLogo) on[slot] = true;
 				}
 				this.state.slots[slot].logo = true;
-				this.userLogoCanvas = await decodeTo(logoB64, false);
+				this.userLogoCanvas = await decodeTo(logoUrl, false);
 			} catch {
 				console.warn('[Studio] Gagal load logo klien:', CLIENT_CONFIG.name);
 			}
@@ -77,6 +90,14 @@ export class UniformStore {
 				this.userLogoCanvas = await decodeTo(this.state.logoSrc, this.state.removeWhite);
 			} catch {
 				this.userLogoCanvas = null;
+			}
+		}
+		for (const [pid, src] of Object.entries(this.state.productLogo || {}) as [ProductKey, string | null][]) {
+			if (!src) continue;
+			try {
+				this.productLogoCanvas[pid] = await decodeTo(src, this.state.removeWhite);
+			} catch {
+				this.productLogoCanvas[pid] = null;
 			}
 		}
 		if (this.state.slots.punggung.extraSrc) {
@@ -103,6 +124,17 @@ export class UniformStore {
 	get currentMaterial() {
 		const curMatId = this.state.material[this.state.product];
 		return this.currentProduct.materials.find(m => m.id === curMatId) || this.currentProduct.materials[0];
+	}
+
+	/** Logo yang tampil di produk aktif: unggahan (kaos/polo) atau logo klien */
+	get activeLogoCanvas() {
+		const pid = this.state.product;
+		return (PRODUCTS[pid].logoOnly && this.productLogoCanvas[pid]) || this.userLogoCanvas;
+	}
+
+	/** Produk aktif memakai logo unggahan sendiri */
+	get hasProductLogo() {
+		return Boolean(this.currentProduct.logoOnly && this.state.productLogo?.[this.state.product]);
 	}
 
 	get look() {
@@ -141,6 +173,7 @@ export class UniformStore {
 	}
 
 	setPattern(patId: string) {
+		if (this.currentProduct.logoOnly) return;
 		this.state.look[this.state.product].pattern = patId;
 		this.saveToLocalStorage();
 	}
@@ -180,6 +213,14 @@ export class UniformStore {
 	}
 
 	async setLogo(base64: string | null) {
+		// Kaos & polo: logo bebas diunggah per produk, tidak ikut kunci logo klien
+		const pid = this.state.product;
+		if (PRODUCTS[pid].logoOnly) {
+			this.state.productLogo = { ...this.state.productLogo, [pid]: base64 };
+			this.productLogoCanvas[pid] = base64 ? await decodeTo(base64, this.state.removeWhite) : null;
+			this.saveToLocalStorage();
+			return;
+		}
 		// Jika logo dikunci, tidak izinkan penggantian
 		if (CLIENT_CONFIG.lockLogo) {
 			this.showToast('Logo Indah Expres sudah terkunci untuk klien ini', 'warn');
@@ -196,8 +237,12 @@ export class UniformStore {
 
 	async setRemoveWhite(val: boolean) {
 		this.state.removeWhite = val;
-		if (this.state.logoSrc) {
+		// Logo klien yang dikunci punya panah putih — jangan ikut dihapus latarnya
+		if (this.state.logoSrc && !CLIENT_CONFIG.lockLogo) {
 			this.userLogoCanvas = await decodeTo(this.state.logoSrc, val);
+		}
+		for (const [pid, src] of Object.entries(this.state.productLogo || {}) as [ProductKey, string | null][]) {
+			if (src) this.productLogoCanvas[pid] = await decodeTo(src, val);
 		}
 		this.saveToLocalStorage();
 	}
@@ -220,14 +265,6 @@ export class UniformStore {
 			curQ[size] = Math.max(0, (+curQ[size] || 0) + deltaOrExact);
 		}
 		this.saveToLocalStorage();
-	}
-
-	resetLook() {
-		this.state.look[this.state.product] = structuredClone(DEFAULT_STATE.look[this.state.product]);
-		// Selalu re-apply lock warna setelah reset
-		this.enforceClientColors();
-		this.saveToLocalStorage();
-		this.showToast('Warna dikembalikan ke setelan Indah Expres');
 	}
 
 	applyCatalogLayout() {
@@ -321,6 +358,12 @@ export class UniformStore {
 		for (const id of P.slots) {
 			if (!this.state.slotOn[this.state.product]?.[id]) continue;
 			const s = this.state.slots[id];
+			if (P.logoOnly) {
+				// Kaos & polo: cukup logo (full color sesuai file), tanpa teks
+				anySlot = true;
+				out.push(`- ${SLOT_DEFS[id].label}: ${this.hasProductLogo ? 'logo unggahan pemesan' : `logo ${CLIENT_CONFIG.name}`}`);
+				continue;
+			}
 			const bits: string[] = [];
 			if (s.logo) bits.push(this.state.logoSrc ? 'logo' : 'logo (file menyusul)');
 			if (s.text.trim()) bits.push(`teks "${s.text.trim().replace(/\n/g, ' / ')}" huruf ${(FONTS[s.font] || FONTS.tegas).label.toLowerCase()}`);
@@ -330,7 +373,7 @@ export class UniformStore {
 			const col = s.color === 'auto' ? autoInk(L.body) : s.color;
 			out.push(`- ${SLOT_DEFS[id].label}: ${bits.join(' + ')}, warna ${colorName(col).toLowerCase()}`);
 		}
-		if (!anySlot) out.push('- (tanpa logo/teks)');
+		if (!anySlot) out.push(P.logoOnly ? '- (tanpa logo)' : '- (tanpa logo/teks)');
 
 		const qMap = this.state.qty[this.state.product] || {};
 		const sizes = P.sizes.filter(([z]) => +qMap[z] > 0).map(([z]) => `${z}: ${qMap[z]}`);
@@ -360,6 +403,7 @@ export class UniformStore {
 			try {
 				const lite = structuredClone(this.state);
 				lite.logoSrc = null;
+				lite.productLogo = {};
 				lite.slots.punggung.extraSrc = null;
 				localStorage.setItem(STORE_KEY, JSON.stringify(lite));
 			} catch {}
@@ -369,7 +413,11 @@ export class UniformStore {
 	loadFromLocalStorage() {
 		if (typeof window === 'undefined') return;
 		try {
-			const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+			let saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+			if (!saved) {
+				saved = JSON.parse(localStorage.getItem(LEGACY_STORE_KEY) || 'null');
+				if (saved && typeof saved === 'object') delete saved.look;
+			}
 			if (saved && typeof saved === 'object') {
 				Object.assign(this.state, saved);
 			}

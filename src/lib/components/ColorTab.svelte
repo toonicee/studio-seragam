@@ -74,6 +74,7 @@
 			<path d="M15.5 17h5v5h-5zM25.5 17h5v5h-5z" fill="${pk}"${pipe}/>
 			<path d="M15.3 16.2h5.4v2h-5.4zM25.3 16.2h5.4v2h-5.4z" fill="${fl}" stroke="${line}" stroke-width=".4"/>
 			<path d="M18 5l5 5 5-5z" fill="${trim}" stroke="${line}" stroke-width=".8"/>
+			${p.epaulet ? `<path d="M17.4 5.6 9.6 8.6M28.6 5.6l7.8 3" stroke="${a}" stroke-width="2.1" stroke-linecap="round"/>` : ''}
 		</svg>`;
 	}
 
@@ -90,41 +91,7 @@
 </script>
 
 <div class="tabpanel">
-	<!-- Pola Warna -->
-	<div class="sec">
-		<h2 class="h">Warna &amp; pola</h2>
-		{#each (uniformStore.currentProduct.sleeve === 'none' ? VEST_GROUPS : PATTERN_GROUPS) as [g, title]}
-			<h3 class="lbl pat-group">{title}</h3>
-			<div class="pat-grid">
-				{#each patternsFor(uniformStore.state.product, g) as p}
-					{@const active = p.id === uniformStore.look.pattern}
-					<button
-						type="button"
-						class="pat"
-						aria-pressed={active}
-						onclick={() => uniformStore.setPattern(p.id)}
-					>
-						{@html getPatternSvg(p.id)}
-						<span>
-							<b>{p.name}</b>
-							<small>{p.desc}</small>
-						</span>
-					</button>
-				{/each}
-			</div>
-		{/each}
-
-		{#if SAMPLE_LOOKS[uniformStore.look.pattern]}
-			<button
-				type="button"
-				class="btn-line btn-sm"
-				onclick={applySampleLook}
-				style="justify-self: start"
-			>
-				Pakai warna seperti contoh
-			</button>
-		{/if}
-	</div>
+	<h2 class="h">Warna</h2>
 
 	<!-- Warna Badan -->
 	<div class="sec">
@@ -157,7 +124,11 @@
 	</div>
 
 	<!-- Warna Aksen (jika bukan pola polos) -->
-	{#if uniformStore.look.pattern !== 'polos'}
+	{#if uniformStore.currentProduct.logoOnly}
+		<p class="sub note">{uniformStore.currentProduct.name} dibuat polos satu warna. Desainnya cukup unggah logo di langkah <b>Logo</b>.</p>
+	{:else if uniformStore.look.pattern === 'polos'}
+		<p class="sub note">Ingin lengan/kerah beda warna? Pilih <b>pola warna</b> di bawah, lalu warna aksen akan muncul di sini.</p>
+	{:else}
 		<div class="sec">
 			<div class="color-row">
 				<h3 class="lbl">Warna aksen (lengan & kerah)</h3>
@@ -268,16 +239,45 @@
 		</div>
 	{/if}
 
-	<div class="sec">
-		<button
-			type="button"
-			class="btn-line btn-sm"
-			onclick={() => uniformStore.resetLook()}
-			style="justify-self: start"
-		>
-			Kembalikan warna seperti katalog
-		</button>
-	</div>
+	<!-- Pola Warna (tidak ada untuk kaos & polo) -->
+	{#if !uniformStore.currentProduct.logoOnly}
+		<div class="sec">
+			<h2 class="h">Pola warna</h2>
+			<p class="sub">Bagian mana yang memakai warna aksen</p>
+			{#each (uniformStore.currentProduct.sleeve === 'none' ? VEST_GROUPS : PATTERN_GROUPS) as [g, title]}
+				<h3 class="lbl pat-group">{title}</h3>
+				<div class="pat-grid">
+					{#each patternsFor(uniformStore.state.product, g) as p}
+						{@const active = p.id === uniformStore.look.pattern}
+						<button
+							type="button"
+							class="pat"
+							aria-pressed={active}
+							onclick={() => uniformStore.setPattern(p.id)}
+						>
+							{@html getPatternSvg(p.id)}
+							<span>
+								<b>{p.name}</b>
+								<small>{p.desc}</small>
+							</span>
+						</button>
+					{/each}
+				</div>
+			{/each}
+
+			{#if SAMPLE_LOOKS[uniformStore.look.pattern]}
+				<button
+					type="button"
+					class="btn-line btn-sm"
+					onclick={applySampleLook}
+					style="justify-self: start"
+				>
+					Pakai warna seperti contoh
+				</button>
+			{/if}
+		</div>
+	{/if}
+
 </div>
 
 <style>
@@ -464,9 +464,78 @@
 		font-size: 13px;
 	}
 
-	@media (max-width: 460px) {
+	.sub {
+		margin: -6px 0 0;
+		font-size: 13px;
+		color: var(--ink-3, #74808b);
+	}
+
+	.sub.note {
+		margin: -8px 0 0;
+		padding: 10px 12px;
+		border-radius: 10px;
+		background: var(--sheet-2, #f0f3f5);
+		color: var(--ink-2, #4d5a66);
+		line-height: 1.4;
+	}
+
+	/* Layar sentuh: target sentuh ≥ 40px */
+	@media (pointer: coarse), (max-width: 600px) {
+		.tabpanel {
+			padding: 16px 16px 20px;
+			gap: 22px;
+		}
+
+		.swatches {
+			gap: 10px;
+		}
+
+		.sw-btn,
+		.sw-custom {
+			width: 40px;
+			height: 40px;
+		}
+
+		.sw-btn:hover {
+			transform: none;
+		}
+
+		.swatches.sm .sw-btn {
+			width: 34px;
+			height: 34px;
+		}
+
+		.sw-custom input {
+			inset: -2px;
+			width: 44px;
+			height: 44px;
+		}
+	}
+
+	@media (max-width: 600px) {
 		.pat-grid {
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+		}
+
+		.pat b {
+			font-size: 12.5px;
+		}
+
+		.pat {
 			grid-template-columns: 1fr;
+			justify-items: center;
+			text-align: center;
+			padding: 10px 6px 8px;
+			gap: 4px;
+		}
+
+		.pat :global(svg) {
+			width: 52px;
+			height: 45px;
+		}
+
+		.pat small {
+			display: none;
 		}
 	}
 </style>

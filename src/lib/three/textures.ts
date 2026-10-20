@@ -261,22 +261,6 @@ const WR_SHIRT_BACK = [
 	{ p: [[0.18, -0.45], [0.17, -0.76]], t: 'v', a: 0.6 }
 ];
 
-const WR_TEE_FRONT = [
-	...WR_SHIRT_FRONT,
-	{ p: [[0.33, 0.22], [0.14, 0.04], [-0.04, -0.12]], t: 'v', a: 0.8 },
-	{ p: [[0.26, -0.04], [0.06, -0.24], [-0.06, -0.33]], t: 'r', a: 0.8 },
-	{ p: [[0.11, 0.47], [0.05, 0.38]], t: 'v', a: 0.7 },
-	{ p: [[0.35, -0.42], [0.18, -0.6], [0.06, -0.68]], t: 'v', a: 0.8 },
-	{ p: [[0.03, 0.1], [0.0, -0.05]], t: 'r', a: 0.5 }
-];
-
-const WR_TEE_BACK = [
-	...WR_SHIRT_BACK,
-	{ p: [[0.34, 0.16], [0.15, 0.0], [-0.03, -0.18]], t: 'v', a: 0.8 },
-	{ p: [[0.3, -0.3], [0.12, -0.5], [0.0, -0.58]], t: 'v', a: 0.7 },
-	{ p: [[0.2, 0.44], [0.08, 0.36]], t: 'v', a: 0.6 }
-];
-
 const shadeCache = new Map<string, { ao: HTMLCanvasElement; bump: HTMLCanvasElement }>();
 
 export function buildShade(
@@ -434,9 +418,10 @@ export function buildShade(
 		}
 	}
 
-	const many = crew || P.collar === 'stand';
-	const front = many ? WR_TEE_FRONT : WR_SHIRT_FRONT,
-		back = many ? WR_TEE_BACK : WR_SHIRT_BACK;
+	// Lipatan besar kini dibentuk geometri (drape). Kerutan lukis dibuat tipis sebagai detail saja;
+	// pola diagonal kaos dihapus karena tampak seperti motif "V" sablon, bukan lipatan kain.
+	const front = WR_SHIRT_FRONT,
+		back = WR_SHIRT_BACK;
 	const yMax = tee ? 0.5 : 0.6;
 	for (const [side, list] of [
 		['front', front],
@@ -452,7 +437,7 @@ export function buildShade(
 					continue;
 				const pts = w.p.filter(([, y]) => y < yMax).map(([s, y]) => toPx(side, s * sg, y));
 				if (pts.length < 2) continue;
-				const k = (w.a ?? 1) * (crew ? 1.35 : 1);
+				const k = (w.a ?? 1) * 0.55;
 				if (w.t === 'v') {
 					softPath(a, pts, { width: 0.012 * pxV, color: `rgba(0,0,0,${0.14 * k})`, blur: 14 });
 					softPath(a, pts, { width: 0.03 * pxV, color: `rgba(0,0,0,${0.06 * k})`, blur: 28 });

@@ -117,6 +117,45 @@ export interface TorsoConfig {
 	neckDropF: number;
 	armhole: { yc: number; H: number; W: number } | null;
 	neckDropB: number;
+	/** Kekuatan lipatan kain (drape) di badan; 0 = permukaan mulus */
+	drape: number;
+	/** Bagian depan tengah kaku (plaket kemeja) → lipatan diredam di sana */
+	stiffFront: boolean;
+}
+
+/**
+ * Lipatan kain alami di badan (meter, arah keluar dari sumbu badan).
+ * Dibuat dari gelombang periodik di u agar menyambung mulus di jahitan samping.
+ */
+function drapeAt(u: number, y: number, cfg: TorsoConfig) {
+	const amp = cfg.drape;
+	if (!amp) return 0;
+	const sideW = Math.pow(Math.abs(Math.cos(TAU * u)), 6); // 1 di jahitan samping (u = 0 / 0,5)
+	const dSide = Math.min(Math.abs(u), Math.abs(u - 0.5), Math.abs(u - 1)); // jarak ke jahitan samping (u)
+
+	// 1) Lipatan jatuh vertikal di badan bawah, makin dalam ke arah kelim; sedikit miring mengikuti tinggi
+	const low = smooth(0.12, -0.82, y);
+	let d = 0;
+	if (low > 0) {
+		const ph = y * 2.4;
+		let f =
+			0.55 * Math.sin(TAU * 7 * u + 0.6 + ph) +
+			0.3 * Math.sin(TAU * 12 * u + 2.1 - ph * 1.3) +
+			0.15 * Math.sin(TAU * 19 * u + 4.0 + ph * 0.5);
+		if (cfg.stiffFront) f *= 1 - 0.75 * Math.exp(-(((u - 0.25) / 0.028) ** 2));
+		d += amp * 0.013 * low * (0.45 + 0.55 * low) * f;
+		// kelim sedikit mengembang keluar
+		d += amp * 0.009 * smooth(-0.55, -0.85, y);
+	}
+
+	// 2) Pinggang sedikit tertarik ke dalam di jahitan samping
+	d -= amp * 0.007 * sideW * Math.exp(-(((y + 0.22) / 0.26) ** 2));
+
+	// 3) Lipatan tarik diagonal dari ketiak
+	const arm = Math.exp(-(((y - 0.3) / 0.09) ** 2)) * Math.exp(-((dSide / 0.06) ** 2));
+	if (arm > 0.01) d += amp * 0.006 * arm * Math.sin(TAU * (dSide / 0.1 + (y - 0.3) / 0.16) + 0.8);
+
+	return d;
 }
 
 export function torsoConfig(pid: ProductKey): TorsoConfig {
@@ -144,7 +183,10 @@ export function torsoConfig(pid: ProductKey): TorsoConfig {
 		hemCurve: P.collar === 'shirt' ? 0.1 : P.collar === 'polo' ? 0.012 : vest ? 0.02 : 0,
 		neckDropF: crew ? 0.08 : P.collar === 'polo' ? 0.065 : vest ? 0.03 : 0.072,
 		armhole: vest ? { yc: 0.33, H: 0.235, W: 0.13 } : null,
-		neckDropB: crew ? 0.014 : 0.006
+		neckDropB: crew ? 0.014 : 0.006,
+		// Kemeja drill lebih kaku, kaos jersey lebih jatuh, rompi taslan paling kaku
+		drape: vest ? 0.55 : P.collar === 'shirt' ? 1 : 1.15,
+		stiffFront: P.placket === 'full' || P.placket === 'zip'
 	};
 }
 
@@ -187,6 +229,12 @@ export function makeTorso(cfg: TorsoConfig): TorsoObject {
 			o[0] = -a * sc(Math.cos(ph), n);
 			o[1] = y;
 			o[2] = b * sc(Math.sin(ph), n);
+			const d = drapeAt(u, y, cfg);
+			if (d) {
+				const h = Math.hypot(o[0], o[2]) || 1;
+				o[0] += (o[0] / h) * d;
+				o[2] += (o[2] / h) * d;
+			}
 			return o;
 		},
 		normal(u: number, t: number, o: number[]) {
@@ -262,18 +310,30 @@ export function geomFromGrid(
 	return g;
 }
 
+/**
+ * Oklusi lembah lipatan: lembah (cekung) digelapkan, punggung lipatan sedikit diterangkan.
+ * Dipakai sebagai warna verteks agar lipatan tetap terbaca walau disinari dari depan.
+ */
+const cavityShade = (lap: number, k: number, depth = 0.16) => 1 + clamp(lap * k, -1, 0.35) * depth;
+
 export function torsoGeometry(T: TorsoObject) {
 	const I = 240,
 		J = 150,
 		P = [0, 0, 0],
 		N = [0, 0, 0];
+	const shade: number[] = [];
+	const du = 0.02;
 	const g = geomFromGrid(I, J, (i, j) => {
 		const u = i / I,
 			t = lerp(T.tStart(u), T.tEnd(u), j / J);
 		T.pos(u, t, P);
 		T.normal(u, t, N);
+		const y = P[1];
+		const lap = drapeAt(u, y, T.cfg) - 0.5 * (drapeAt(u - du, y, T.cfg) + drapeAt(u + du, y, T.cfg));
+		shade.push(cavityShade(lap, 1100));
 		return { p: [...P], n: [...N], uv: [u, T.prof.vAt(t)] };
 	});
+	setShade(g, shade);
 	const ah = T.cfg.armhole;
 	if (ah) {
 		const idx = (g.index?.array as any) || [],
@@ -295,6 +355,12 @@ export function torsoGeometry(T: TorsoObject) {
 		g.setIndex(keep);
 	}
 	return g;
+}
+
+function setShade(g: THREE.BufferGeometry, shade: number[]) {
+	const col = new Float32Array(shade.length * 3);
+	shade.forEach((v, k) => col.fill(v, k * 3, k * 3 + 3));
+	g.setAttribute('color', new THREE.BufferAttribute(col, 3));
 }
 
 export function torsoPatch(
@@ -353,18 +419,26 @@ export interface SleeveConfig {
 	r1: number;
 	kz: number;
 	zc: number;
+	/** Kekuatan lipatan lengan (relatif terhadap jari-jari) */
+	fold: number;
+	/** Lipatan berhenti sebelum titik ini (manset / gulungan / rib tetap kaku) */
+	foldEnd: number;
+	/** Ujung lengan sedikit maju ke depan seperti lengan yang rileks (meter) */
+	bend?: number;
+	/** Lengan digulung: kain menumpuk sedikit tepat di atas gulungan */
+	rolled?: boolean;
 }
 
 export function sleeveConfig(pid: ProductKey): SleeveConfig {
 	const P = PRODUCTS[pid];
 	const base = { S: [0.446, 0.49] as [number, number], beta: 72 * DEG, startIn: 0.13, taperPow: 1 };
 	if (P.sleeve === 'long')
-		return { ...base, alpha: 13 * DEG, len: 1.14, r0: 0.136, r1: 0.095, kz: 0.9, zc: 0.035, taperPow: 0.8 };
+		return { ...base, alpha: 13 * DEG, len: 1.14, r0: 0.136, r1: 0.095, kz: 0.8, zc: 0.035, taperPow: 0.8, fold: 1, foldEnd: 1.14 - 0.125, bend: 0.06 };
 	if (P.sleeve === 'tee')
-		return { ...base, alpha: 36 * DEG, len: 0.32, r0: 0.136, r1: 0.15, kz: 0.8, zc: 0.02 };
+		return { ...base, alpha: 36 * DEG, len: 0.32, r0: 0.136, r1: 0.15, kz: 0.8, zc: 0.02, fold: 0.085, foldEnd: 0.32 };
 	if (P.sleeve === 'polo')
-		return { ...base, alpha: 38 * DEG, len: 0.28, r0: 0.134, r1: 0.14, kz: 0.82, zc: 0.02 };
-	return { ...base, alpha: 23 * DEG, len: 0.39, r0: 0.138, r1: 0.165, kz: 0.85, zc: 0.035 };
+		return { ...base, alpha: 38 * DEG, len: 0.28, r0: 0.134, r1: 0.14, kz: 0.82, zc: 0.02, fold: 0.06, foldEnd: 0.28 - 0.055 };
+	return { ...base, alpha: 23 * DEG, len: 0.39, r0: 0.138, r1: 0.165, kz: 0.85, zc: 0.035, fold: 0.075, foldEnd: 0.39 };
 }
 
 export function sleeveFrame(c: SleeveConfig) {
@@ -379,14 +453,79 @@ export function sleeveRadius(c: SleeveConfig, s: number) {
 	return lerp(c.r0, c.r1, Math.pow(clamp(s / c.len, 0, 1), c.taperPow));
 }
 
-export function sleevePoint(
-	c: SleeveConfig,
-	side: number,
-	s: number,
-	th: number,
-	rScale = 1,
-	rAdd = 0
-) {
+/**
+ * Lipatan lengan (faktor jari-jari): gelombang memanjang yang lebih dalam di sisi bawah
+ * (ketiak) dan makin terasa ke ujung lengan; lengan panjang ditambah kerutan melingkar di atas manset.
+ */
+function sleeveFold(c: SleeveConfig, s: number, th: number) {
+	if (!c.fold || s <= 0.03) return 0;
+	const w = smooth(0.03, 0.12, s) * (1 - smooth(c.foldEnd - 0.04, c.foldEnd, s));
+	if (w <= 0) return 0;
+	if (c.len > 0.8) return c.fold * w * longSleeveFold(c, s, th);
+	const under = Math.pow(Math.max(0, -Math.cos(th)), 1.5);
+	const t = s / c.len;
+	const f = (0.6 * Math.sin(5 * th + s * 9) + 0.4 * Math.sin(9 * th - s * 13 + 1.3)) * (0.35 + 0.65 * under) * (0.4 + 0.6 * t);
+	return c.fold * w * f;
+}
+
+/** Hash kisi 3D → [-1, 1] (deterministik, tanpa Math.random agar bentuk lipatan stabil) */
+function hash3(i: number, j: number, k: number) {
+	let h = Math.imul(i, 374761393) ^ Math.imul(j, 668265263) ^ Math.imul(k, 1440662683);
+	h = Math.imul(h ^ (h >>> 13), 1274126177);
+	h ^= h >>> 16;
+	return (h & 0xffff) / 32767.5 - 1;
+}
+
+/** Value noise 3D halus (interpolasi quintic) */
+function vnoise(x: number, y: number, z: number) {
+	const xi = Math.floor(x),
+		yi = Math.floor(y),
+		zi = Math.floor(z);
+	const q = (t: number) => t * t * t * (t * (t * 6 - 15) + 10);
+	const u = q(x - xi),
+		v = q(y - yi),
+		w = q(z - zi);
+	const L = (a: number, b: number, t: number) => a + (b - a) * t;
+	const c = (dx: number, dy: number, dz: number) => hash3(xi + dx, yi + dy, zi + dz);
+	return L(
+		L(L(c(0, 0, 0), c(1, 0, 0), u), L(c(0, 1, 0), c(1, 1, 0), u), v),
+		L(L(c(0, 0, 1), c(1, 0, 1), u), L(c(0, 1, 1), c(1, 1, 1), u), v),
+		w
+	);
+}
+
+/**
+ * Lipatan lengan panjang seperti kemeja asli: garis lipat terbuka yang sejajar tapi bergelombang
+ * (bukan cincin / bulatan), miring di lengan atas & siku, makin rapat dan mendatar di atas manset.
+ * Lipatan muncul-hilang tidak merata dan terkumpul di sisi dalam lengan (menghadap badan).
+ */
+function longSleeveFold(c: SleeveConfig, s: number, th: number) {
+	const R = 0.12;
+	const inner = Math.pow(Math.max(0, -Math.cos(th)), 1.2);
+	const arc = Math.atan2(Math.sin(th - Math.PI), Math.cos(th - Math.PI)) * R; // 0 di sisi dalam
+	// zona kain menumpuk: di atas manset, atau (lebih pendek) di atas gulungan
+	const k = c.rolled ? 0.45 : 1;
+	const stackStart = c.foldEnd - 0.33 * k;
+	const stack = smooth(stackStart, c.foldEnd - 0.16 * k, s);
+	const elbow = Math.exp(-(((s - 0.62) / 0.16) ** 2));
+	const X = Math.cos(th) * R * 4,
+		Y = Math.sin(th) * R * c.kz * 4;
+
+	// fase lipatan (satuan siklus): miring di atas, lebih rapat & datar mendekati manset
+	let ph = (s + 0.5 * arc * (1 - 0.7 * stack)) / 0.16 + Math.max(0, s - stackStart) * (1 / 0.085 - 1 / 0.16);
+	ph += 0.55 * vnoise(X * 0.8, Y * 0.8, s * 4); // garis bergelombang, jarak tidak seragam
+
+	// garis lipat tajam (lembah) dengan punggung landai
+	const cp = Math.pow(Math.abs(Math.sin(Math.PI * ph)), 0.75) - 0.6;
+	// lipatan muncul sebagian-sebagian, tidak melingkar penuh
+	const mask = smooth(-0.4, 0.3, vnoise(X * 1.1 + 5.2, Y * 1.1 - 1.7, s * 5 + 3.1)) * (0.55 + 0.45 * inner);
+	// sisi luar (siluet tampak depan) dibuat landai agar lapisan dalam lengan tidak tersingkap
+	const outer = Math.pow(Math.max(0, Math.cos(th)), 2);
+	const amp = (0.085 + 0.05 * inner) * (1 - 0.7 * outer) * mask * (0.45 + 0.5 * elbow + 0.6 * stack);
+	return amp * cp + 0.02 * stack;
+}
+
+function sleevePos(c: SleeveConfig, side: number, s: number, th: number, rScale: number, rAdd: number, o: number[]) {
 	const { d, p, O } = sleeveFrame(c);
 	let cx: number, cy: number;
 	if (s >= 0) {
@@ -396,25 +535,46 @@ export function sleevePoint(
 		cx = O[0] + Math.sin(c.beta) * s;
 		cy = O[1] - Math.cos(c.beta) * s;
 	}
-	const r = sleeveRadius(c, s) * rScale + rAdd,
-		rz = r * c.kz,
-		co = Math.cos(th),
-		si = Math.sin(th);
-	let x = cx + p[0] * r * co;
-	const y = cy + p[1] * r * co;
-	const z = c.zc + rz * si;
-	let nx = (p[0] * co) / r,
-		ny = (p[1] * co) / r,
-		nz = si / rz;
-	const l = Math.hypot(nx, ny, nz);
-	nx /= l;
-	ny /= l;
-	nz /= l;
-	if (side < 0) {
-		x = -x;
-		nx = -nx;
-	}
-	return { p: [x, y, z], n: [nx, ny, nz] };
+	const r = (sleeveRadius(c, s) * rScale + rAdd) * (1 + sleeveFold(c, s, th)),
+		co = Math.cos(th);
+	o[0] = (cx + p[0] * r * co) * (side < 0 ? -1 : 1);
+	o[1] = cy + p[1] * r * co;
+	o[2] = c.zc + (c.bend ? c.bend * smooth(0.3 * c.len, c.len, s) : 0) + r * c.kz * Math.sin(th);
+	return o;
+}
+
+export function sleevePoint(
+	c: SleeveConfig,
+	side: number,
+	s: number,
+	th: number,
+	rScale = 1,
+	rAdd = 0
+) {
+	const P = sleevePos(c, side, s, th, rScale, rAdd, [0, 0, 0]);
+	// Normal numerik agar ikut lipatan; arah dipastikan keluar dari sumbu lengan
+	const es = 0.002,
+		et = 0.01;
+	const A = sleevePos(c, side, s + es, th, rScale, rAdd, [0, 0, 0]),
+		B = sleevePos(c, side, s - es, th, rScale, rAdd, [0, 0, 0]),
+		C = sleevePos(c, side, s, th + et, rScale, rAdd, [0, 0, 0]),
+		D = sleevePos(c, side, s, th - et, rScale, rAdd, [0, 0, 0]);
+	const ax = A[0] - B[0],
+		ay = A[1] - B[1],
+		az = A[2] - B[2],
+		bx = C[0] - D[0],
+		by = C[1] - D[1],
+		bz = C[2] - D[2];
+	let nx = ay * bz - az * by,
+		ny = az * bx - ax * bz,
+		nz = ax * by - ay * bx;
+	const { p } = sleeveFrame(c),
+		co = Math.cos(th);
+	const rx = p[0] * co * (side < 0 ? -1 : 1),
+		ry = p[1] * co,
+		rz = Math.sin(th);
+	const l = Math.hypot(nx, ny, nz) * (nx * rx + ny * ry + nz * rz < 0 ? -1 : 1) || 1;
+	return { p: P, n: [nx / l, ny / l, nz / l] };
 }
 
 export function sleeveGeom(
@@ -425,42 +585,80 @@ export function sleeveGeom(
 	rScale = 1,
 	rAdd = 0
 ) {
-	const segA = 64,
-		segL = Math.max(6, Math.round((s1 - s0) * 80));
-	return geomFromGrid(
+	// Lengan panjang butuh mesh lebih rapat agar garis lipat tetap tajam
+	const long = c.len > 0.8;
+	const segA = long ? 112 : 64,
+		segL = Math.max(6, Math.round((s1 - s0) * (long ? 150 : 80)));
+	const shade: number[] = [],
+		dt = 0.12,
+		ds = 0.015;
+	const g = geomFromGrid(
 		segA,
 		segL,
 		(i, j) => {
 			const s = lerp(s0, s1, j / segL),
-				r = sleevePoint(c, side, s, (i / segA) * TAU, rScale, rAdd);
+				th = (i / segA) * TAU,
+				r = sleevePoint(c, side, s, th, rScale, rAdd);
+			const lap =
+				sleeveFold(c, s, th) -
+				0.25 *
+					(sleeveFold(c, s, th - dt) + sleeveFold(c, s, th + dt) + sleeveFold(c, s - ds, th) + sleeveFold(c, s + ds, th));
+			shade.push(cavityShade(lap * sleeveRadius(c, s), long ? 600 : 2200, long ? 0.24 : 0.16));
 			return { p: r.p, n: r.n, uv: [i / segA, j / segL] };
 		},
 		side < 0
 	);
+	setShade(g, shade);
+	return g;
 }
 
-export const ROLL = { s0: 0.47, s1: 0.58, extra: 0.026 };
+/**
+ * Lengan digulung model "master roll": manset dilipat ke atas lalu ditutup lipatan lengan,
+ * berhenti sedikit di bawah siku. s0–s1 = tinggi pita gulungan, extra = tebal tumpukan kain,
+ * tab = sudut tali gulung (sisi luar-belakang lengan, tak terlihat dari depan).
+ */
+export const ROLL = { s0: 0.6, s1: 0.755, extra: 0.013, tab: -0.24 * Math.PI, cuffEdge: 0.17 };
+
+/**
+ * Profil pita gulungan (0 = tepi atas, 1 = tepi bawah): datar & tegak dengan tepi lipat
+ * membulat kecil — bukan menggembung seperti ban — sedikit melebar ke bawah,
+ * dan alur tipis tempat tepi manset menyembul di bagian atas.
+ */
+function rollProfile(f: number, T: number) {
+	const e = 0.075;
+	const top = Math.sqrt(1 - (1 - clamp(f / e, 0, 1)) ** 2),
+		bot = Math.sqrt(1 - (1 - clamp((1 - f) / (e * 0.8), 0, 1)) ** 2);
+	const groove = 0.28 * Math.exp(-(((f - ROLL.cuffEdge) / 0.022) ** 2));
+	return T * (Math.min(top, bot) * (1 + 0.3 * f) - groove);
+}
 
 export function rollGeom(c: SleeveConfig, side: number, s0: number, s1: number, extra: number) {
-	const segA = 64,
-		segL = 28,
-		prof = (f: number) => extra * Math.pow(Math.max(0, Math.sin(Math.PI * f)), 0.28);
-	const ax = [Math.sin(c.alpha) * (side < 0 ? -1 : 1), -Math.cos(c.alpha), 0];
+	const segA = 96,
+		segL = 48;
+	const at = (f: number, th: number) =>
+		sleevePoint(c, side, lerp(s0, s1, f), th, 1, 0.004 + rollProfile(f, extra)).p;
 	return geomFromGrid(
 		segA,
 		segL,
 		(i, j) => {
 			const f = j / segL,
-				s = lerp(s0, s1, f),
 				th = (i / segA) * TAU;
-			const pt = sleevePoint(c, side, s, th, 1, 0.004 + prof(f));
-			const e = 0.01,
-				dr =
-					(prof(Math.min(1, f + e)) - prof(Math.max(0, f - e))) /
-					((Math.min(1, f + e) - Math.max(0, f - e)) * (s1 - s0));
-			const n = [pt.n[0] - ax[0] * dr, pt.n[1] - ax[1] * dr, pt.n[2] - ax[2] * dr],
-				l = Math.hypot(...n);
-			return { p: pt.p, n: n.map(v => v / l), uv: [i / segA, f] };
+			const P = at(f, th);
+			// normal numerik agar tepi lipat yang membulat tertangkap cahaya dengan benar
+			const ef = 0.004,
+				et = 0.01;
+			const A = at(Math.min(1, f + ef), th),
+				B = at(Math.max(0, f - ef), th),
+				C = at(f, th + et),
+				D = at(f, th - et);
+			const u = [A[0] - B[0], A[1] - B[1], A[2] - B[2]],
+				v = [C[0] - D[0], C[1] - D[1], C[2] - D[2]];
+			let n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+			const ref = sleevePoint(c, side, lerp(s0, s1, f), th).n;
+			const sg = n[0] * ref[0] + n[1] * ref[1] + n[2] * ref[2] < 0 ? -1 : 1;
+			const l = Math.hypot(n[0], n[1], n[2]) * sg || 1;
+			n = n.map(x => x / l);
+			return { p: P, n, uv: [i / segA, f] };
 		},
 		side < 0
 	);

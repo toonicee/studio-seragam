@@ -8,6 +8,8 @@
 	let stageEl: HTMLElement;
 	let engine: ThreeEngine | null = null;
 	let isWebGLSupported = $state(true);
+	let expanded = $state(false);
+	let touched = $state(false);
 
 	export function takeSnapshot(view: 'front' | 'back'): string {
 		if (!engine) return '';
@@ -23,7 +25,7 @@
 			// Initial build
 			engine.buildShirt(uniformStore.state);
 			engine.applyWeave(uniformStore.state);
-			engine.paintAll(uniformStore.state, uniformStore.userLogoCanvas, uniformStore.extraImgCanvas);
+			engine.paintAll(uniformStore.state, uniformStore.activeLogoCanvas, uniformStore.extraImgCanvas);
 			engine.setView('front', true);
 		} catch (err) {
 			console.error('Failed to init Three.js engine:', err);
@@ -44,7 +46,7 @@
 
 		if (engine && pid) {
 			engine.buildShirt(uniformStore.state);
-			engine.paintAll(uniformStore.state, uniformStore.userLogoCanvas, uniformStore.extraImgCanvas);
+			engine.paintAll(uniformStore.state, uniformStore.activeLogoCanvas, uniformStore.extraImgCanvas);
 		}
 	});
 
@@ -64,7 +66,7 @@
 		const slots = uniformStore.state.slots;
 		const slotOn = uniformStore.state.slotOn[pid];
 		const vestFlag = uniformStore.state.vestFlag;
-		const userLogo = uniformStore.userLogoCanvas;
+		const userLogo = uniformStore.activeLogoCanvas;
 		const extraImg = uniformStore.extraImgCanvas;
 
 		if (engine && look) {
@@ -99,8 +101,27 @@
 	}
 </script>
 
-<section class="stage" bind:this={stageEl} aria-label="Pratinjau 3D seragam">
-	<canvas bind:this={canvasEl} id="gl" aria-label="Model 3D seragam"></canvas>
+<section class="stage" class:expanded bind:this={stageEl} aria-label="Pratinjau 3D seragam">
+	<canvas
+		bind:this={canvasEl}
+		id="gl"
+		aria-label="Model 3D seragam"
+		onpointerdown={() => (touched = true)}
+	></canvas>
+
+	<button
+		type="button"
+		class="expand"
+		aria-pressed={expanded}
+		aria-label={expanded ? 'Perkecil pratinjau' : 'Perbesar pratinjau'}
+		onclick={() => (expanded = !expanded)}
+	>
+		{#if expanded}
+			<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M8 3v5H3M12 17v-5h5M8 8 3 3M12 12l5 5"/></svg>
+		{:else}
+			<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 8V3h5M17 12v5h-5M3 3l5 5M17 17l-5-5"/></svg>
+		{/if}
+	</button>
 
 	<!-- Tag Spesifikasi Kiri Atas -->
 	<div class="tag">
@@ -169,7 +190,13 @@
 		</button>
 	</div>
 
-	<p class="hint">Seret untuk memutar · scroll untuk zoom</p>
+	<p class="hint desktop">Seret untuk memutar · scroll untuk zoom</p>
+	{#if !touched}
+		<p class="hint touch">
+			<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 10h12M7 7l-3 3 3 3M13 7l3 3-3 3"/></svg>
+			Geser untuk memutar · cubit untuk zoom
+		</p>
+	{/if}
 </section>
 
 <style>
@@ -324,24 +351,127 @@
 		pointer-events: none;
 	}
 
+	.expand {
+		display: none;
+		position: absolute;
+		z-index: 2;
+		top: 10px;
+		right: 10px;
+		width: 40px;
+		height: 40px;
+		place-items: center;
+		padding: 0;
+		border-radius: 12px;
+		border: 1px solid var(--line, #d2d9de);
+		background: var(--sheet, #ffffff);
+		color: var(--ink, #17202a);
+		box-shadow: var(--shadow);
+		cursor: pointer;
+	}
+
+	.expand svg {
+		width: 18px;
+		height: 18px;
+	}
+
+	.hint.touch {
+		display: none;
+	}
+
+	@media (max-width: 900px) {
+		/* Pratinjau tetap terlihat di atas panel; tombol perbesar untuk melihat detail */
+		.stage {
+			flex: none;
+			height: 36dvh;
+			min-height: 230px;
+			transition: height 0.25s ease;
+		}
+
+		.stage.expanded {
+			height: 68dvh;
+		}
+
+		.expand {
+			display: grid;
+		}
+
+		.hint.desktop {
+			display: none;
+		}
+
+		.hint.touch {
+			display: flex;
+			align-items: center;
+			gap: 6px;
+			left: 50%;
+			right: auto;
+			top: 50%;
+			bottom: auto;
+			transform: translate(-50%, -50%);
+			padding: 7px 12px;
+			border-radius: 999px;
+			background: rgba(23, 32, 42, 0.72);
+			color: #fff;
+			font-size: 12.5px;
+			white-space: nowrap;
+			animation: hint-fade 4.5s ease forwards;
+		}
+
+		.hint.touch svg {
+			width: 16px;
+			height: 16px;
+		}
+	}
+
+	@keyframes hint-fade {
+		0%, 70% { opacity: 1; }
+		100% { opacity: 0; visibility: hidden; }
+	}
+
 	@media (max-width: 600px) {
+		/* Label ringkas satu baris agar tidak menutupi model */
 		.tag {
-			padding: 8px 12px 9px 30px;
+			top: 8px;
+			left: 8px;
+			display: flex;
+			flex-wrap: wrap;
+			align-items: baseline;
+			column-gap: 8px;
+			padding: 6px 10px 6px 24px;
+			max-width: calc(100% - 64px);
+			clip-path: polygon(10px 0, 100% 0, 100% 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);
+		}
+
+		.tag::before {
+			left: 8px;
+			width: 7px;
+			height: 7px;
+			margin-top: -3.5px;
+		}
+
+		.tag-kicker,
+		.tag-mat,
+		.tag-price s,
+		.tag-price small {
+			display: none;
 		}
 
 		.tag-name {
-			font-size: 17px;
+			font-size: 15px;
 		}
 
-		.tag-mat {
-			display: none;
+		.tag-price {
+			margin-top: 0;
+			font-size: 12.5px;
 		}
 
-		.hint {
-			display: none;
+		.expand {
+			top: 8px;
+			right: 8px;
 		}
 
 		.views {
+			bottom: 10px;
 			max-width: calc(100% - 20px);
 			overflow-x: auto;
 			scrollbar-width: none;
@@ -352,7 +482,8 @@
 		}
 
 		.views button {
-			padding: 7px 10px;
+			min-height: 36px;
+			padding: 0 10px;
 			font-size: 12px;
 		}
 	}
