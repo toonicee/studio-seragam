@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { isSupabaseConfigured } from '$lib/supabase/client';
 	import { CLIENT_CONFIG } from '$lib/client-config';
 
 	let {
@@ -28,18 +27,6 @@
 	</div>
 
 	<div class="header-actions">
-		<div
-			class="db-badge"
-			title={isSupabaseConfigured
-				? 'Database PostgreSQL & Cloud Storage Supabase aktif'
-				: 'Mode offline: data tersimpan di browser localStorage'}
-		>
-			<span class="dot {isSupabaseConfigured ? 'online' : 'local'}"></span>
-			<span class="db-text">
-				{isSupabaseConfigured ? 'Supabase DB' : 'Lokal DB'}
-			</span>
-		</div>
-
 		<!-- Tombol Katalog -->
 		<a href="/katalog" class="btn-header katalog" title="Lihat katalog seragam lengkap Indah Expres">
 			<svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
@@ -173,34 +160,6 @@
 		gap: 10px;
 	}
 
-	.db-badge {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		padding: 6px 10px;
-		background: var(--sheet-2, #f0f3f5);
-		border: 1px solid var(--line, #d2d9de);
-		border-radius: 20px;
-		font-family: var(--f-mono, monospace);
-		font-size: 11.5px;
-		color: var(--ink-2, #4d5a66);
-	}
-
-	.dot {
-		width: 8px;
-		height: 8px;
-		border-radius: 50%;
-	}
-
-	.dot.online {
-		background: #10b981;
-		box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
-	}
-
-	.dot.local {
-		background: #f59e0b;
-	}
-
 	.btn-header {
 		display: inline-flex;
 		align-items: center;
@@ -264,10 +223,6 @@
 		.app-header {
 			padding: 6px 8px 6px 10px;
 			margin-bottom: 8px;
-		}
-
-		.db-badge {
-			display: none;
 		}
 	}
 
