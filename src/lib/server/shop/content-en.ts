@@ -4,7 +4,8 @@ export const CATEGORY_EN: Record<string, { name: string; description: string }> 
 	pakaian: { name: 'Apparel', description: 'Official Indah Expres T-shirts, shirts, polos, and vests.' },
 	'topi-aksesoris': { name: 'Caps & Accessories', description: 'Uniform extras and souvenirs for the team.' },
 	tas: { name: 'Bags', description: 'Indah Expres canvas bags for work and everyday use.' },
-	'rumah-kantor': { name: 'Home & Office', description: 'Drinkware for the office, warehouse, and home.' }
+	'rumah-kantor': { name: 'Home & Office', description: 'Drinkware for the office, warehouse, and home.' },
+	'e-money': { name: 'E-Money', description: 'Indah Expres electronic money cards for tolls, parking, and transit.' }
 };
 
 export const PRODUCT_EN: Record<string, { name: string; summary: string; description: string; details: string[] }> = {
@@ -83,6 +84,13 @@ export const PRODUCT_EN: Record<string, { name: string; summary: string; descrip
 		description:
 			'A white 350 ml ceramic mug printed with the orange Indah Expres logo. Microwave and dishwasher safe.',
 		details: ['350 ml ceramic', 'Sublimation logo print', 'Microwave safe']
+	},
+	'kartu-e-money': {
+		name: 'Indah Expres E-Money Card',
+		summary: 'Electronic money card in an Indah Expres design for tolls and transit.',
+		description:
+			'An electronic money card with a custom Indah Expres design. Use it for toll roads, parking, and public transport, then top it up via mobile banking or at minimarkets. Shipped with no starting balance.',
+		details: ['Full-colour Indah Expres design on both sides', 'For tolls, parking, and public transport', 'Top up via mobile banking or minimarkets', 'Shipped with no starting balance']
 	}
 };
 

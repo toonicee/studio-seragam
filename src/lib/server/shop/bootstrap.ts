@@ -11,7 +11,7 @@ import { Cron } from 'croner';
 import { ensureAdmin } from '../auth';
 import { getDb, runMigrations } from '../db';
 import { runScheduledTasks } from './scheduler';
-import { backfillEnglish, seedDemo, seedSample } from './seed';
+import { backfillEnglish, seedDemo, seedSample, syncCategories } from './seed';
 
 export function runJob(source: string) {
 	try {
@@ -37,6 +37,8 @@ export async function bootstrap() {
 	runMigrations(db);
 
 	const now = new Date();
+	// Kategori selalu disiapkan (juga tanpa katalog contoh) supaya admin bisa langsung menambah produk
+	syncCategories(db);
 	if (SEED_SAMPLE) seedSample(db, now);
 	backfillEnglish(db);
 	if (SEED_DEMO_ORDERS) await seedDemo(db, now);

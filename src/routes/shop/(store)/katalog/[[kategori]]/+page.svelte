@@ -24,11 +24,6 @@
 		return q ? `${path}?${q}` : path;
 	}
 
-	const chip = (active: boolean) =>
-		cn(
-			'inline-flex h-9 shrink-0 items-center rounded-full border px-4 text-sm font-medium whitespace-nowrap transition-colors',
-			active ? 'border-ink bg-ink text-white' : 'border-border bg-white hover:border-ink/40'
-		);
 </script>
 
 <svelte:head>
@@ -61,19 +56,9 @@
 		<p class="text-sm text-muted-foreground">{tn('common.products', data.total)}</p>
 	</header>
 
-	<!-- Kategori -->
-	<nav aria-label={t('nav.categories')} class="-mx-4 mt-5 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
-		<a href={withParams('/shop/katalog', {})} class={chip(!data.category)}>{t('catalog.all')}</a>
-		{#each data.categories as c (c.id)}
-			<a href={withParams(`/shop/katalog/${c.slug}`, {})} class={chip(data.category?.slug === c.slug)}>
-				{c.name}
-			</a>
-		{/each}
-	</nav>
-
-	<!-- Status & urutan -->
-	<div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-		<div class="-mx-4 flex items-center gap-1 overflow-x-auto px-4 [scrollbar-width:none]" role="group" aria-label={t('catalog.statusAria')}>
+	<!-- Status & urutan (kategori dipilih lewat menu kategori di bawah header) -->
+	<div class="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+		<div class="-mx-4 flex items-center gap-1 overflow-x-auto px-4 scrollbar-none" role="group" aria-label={t('catalog.statusAria')}>
 			<SlidersHorizontal class="mr-1 size-4 shrink-0 text-muted-foreground" />
 			{#each data.statuses as key (key)}
 				<a

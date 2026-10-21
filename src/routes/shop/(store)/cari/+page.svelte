@@ -11,10 +11,6 @@
 
 <div class="mx-auto max-w-7xl px-4 pt-8">
 	<h1 class="display text-[36px] md:text-[48px]">{data.q ? t('search.results', { q: data.q }) : t('search.title')}</h1>
-	<form method="GET" class="mt-4 flex max-w-xl gap-2">
-		<input name="q" type="search" value={data.q} placeholder={t('nav.searchPlaceholder')} aria-label={t('nav.search')} class="h-11 flex-1 rounded-md border border-input px-3 outline-none focus:border-brand focus:ring-3 focus:ring-brand/15" />
-		<button class="h-11 rounded-md bg-ink px-5 font-semibold text-white">{t('nav.searchButton')}</button>
-	</form>
 	{#if data.results.length}
 		<p class="mt-6 text-sm text-muted-foreground">{tn('common.products', data.results.length)}</p>
 		<ul class="mt-4 grid grid-cols-2 gap-x-4 gap-y-9 md:grid-cols-3 md:gap-x-5 lg:grid-cols-4">

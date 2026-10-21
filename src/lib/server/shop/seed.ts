@@ -46,11 +46,13 @@ interface SampleProduct {
 	closeInDays: number;
 }
 
-export const SAMPLE_CATEGORIES = [
+/** Kategori toko (belum ada halaman admin untuk kategori). Urutan di sini = urutan di menu. */
+export const SHOP_CATEGORIES = [
 	{ slug: 'pakaian', name: 'Pakaian', description: 'Kaos, kemeja, polo, dan rompi resmi Indah Expres.' },
 	{ slug: 'topi-aksesoris', name: 'Topi & Aksesoris', description: 'Pelengkap seragam dan suvenir untuk tim.' },
 	{ slug: 'tas', name: 'Tas', description: 'Tas kanvas bertanda Indah Expres untuk kerja dan sehari-hari.' },
-	{ slug: 'rumah-kantor', name: 'Rumah & Kantor', description: 'Perlengkapan minum untuk kantor, gudang, dan rumah.' }
+	{ slug: 'rumah-kantor', name: 'Rumah & Kantor', description: 'Perlengkapan minum untuk kantor, gudang, dan rumah.' },
+	{ slug: 'e-money', name: 'E-Money', description: 'Kartu uang elektronik berdesain Indah Expres untuk tol, parkir, dan transportasi.' }
 ];
 
 export const SAMPLE_PRODUCTS: SampleProduct[] = [
@@ -220,8 +222,34 @@ export const SAMPLE_PRODUCTS: SampleProduct[] = [
 		productionDays: 14,
 		target: 60,
 		closeInDays: 10
+	},
+	{
+		slug: 'kartu-e-money',
+		category: 'e-money',
+		name: 'Kartu E-Money Indah Expres',
+		summary: 'Kartu uang elektronik desain Indah Expres untuk tol dan transportasi.',
+		description:
+			'Kartu uang elektronik dengan desain khusus Indah Expres. Bisa dipakai untuk bayar tol, parkir, dan transportasi umum, lalu diisi ulang lewat m-banking atau minimarket. Dikirim tanpa saldo awal.',
+		details: ['Desain Indah Expres cetak penuh dua sisi', 'Untuk tol, parkir, dan transportasi umum', 'Isi ulang lewat m-banking atau minimarket', 'Dikirim tanpa saldo awal'],
+		price: 40000,
+		sizes: [],
+		images: [img('/shop-img/e-money.webp', 'Gambar sementara Kartu E-Money Indah Expres', true)],
+		productionDays: 14,
+		target: 100,
+		closeInDays: 12
 	}
 ];
+
+/** Tambahkan kategori di SHOP_CATEGORIES yang belum ada di database. Kategori yang sudah ada tidak diubah. */
+export function syncCategories(db: Conn) {
+	SHOP_CATEGORIES.forEach((c, i) => {
+		const en = CATEGORY_EN[c.slug];
+		db.insert(categories)
+			.values({ ...c, nameEn: en?.name ?? '', descriptionEn: en?.description ?? '', sort: i })
+			.onConflictDoNothing({ target: categories.slug })
+			.run();
+	});
+}
 
 /** Isi katalog contoh, halaman info, dan tarif ongkir bila database masih kosong */
 export function seedSample(db: Conn, now: Date) {
@@ -238,16 +266,8 @@ export function seedSample(db: Conn, now: Date) {
 		if (!zones) tx.insert(shippingZones).values({ name: 'Tarif flat seluruh Indonesia', fee: 20000, sort: 0 }).run();
 		if (hasProducts) return;
 
-		const catIds = new Map<string, number>();
-		SAMPLE_CATEGORIES.forEach((c, i) => {
-			const en = CATEGORY_EN[c.slug];
-			const { id } = tx
-				.insert(categories)
-				.values({ ...c, nameEn: en?.name ?? '', descriptionEn: en?.description ?? '', sort: i })
-				.returning({ id: categories.id })
-				.get();
-			catIds.set(c.slug, id);
-		});
+		syncCategories(tx);
+		const catIds = new Map(tx.select({ slug: categories.slug, id: categories.id }).from(categories).all().map((c) => [c.slug, c.id]));
 
 		const today = wibDateString(now.getTime());
 		SAMPLE_PRODUCTS.forEach((p, i) => {

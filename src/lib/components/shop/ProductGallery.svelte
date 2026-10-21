@@ -12,8 +12,12 @@
 
 	onMount(() => {
 		let cancelled = false;
+		// Ditunda: event Swiper bisa muncul di tengah pembaruan Svelte (lihat HeroSlider)
 		const onChange = (e: Event) => {
-			active = (e as CustomEvent<[{ activeIndex: number }]>).detail[0].activeIndex;
+			const index = (e as CustomEvent<[{ activeIndex: number }]>).detail[0].activeIndex;
+			queueMicrotask(() => {
+				if (!cancelled) active = index;
+			});
 		};
 		import('swiper/element/bundle').then(({ register }) => {
 			if (cancelled) return;

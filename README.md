@@ -115,6 +115,8 @@ npm run dev               # buka http://localhost:5173/shop
 - Database dibuat otomatis di `./data/shop.db` (migrasi berjalan saat server start).
 - `SEED_SAMPLE=1` mengisi katalog contoh; `SEED_DEMO_ORDERS=1` menambah mitra & pesanan contoh
   (kode mitra uji: `DEMO`, WhatsApp `0812-3456-7890`). Jangan aktifkan data demo di server asli.
+- Kategori toko diatur di `SHOP_CATEGORIES` (`src/lib/server/shop/seed.ts`). Kategori yang belum ada
+  ditambahkan otomatis saat server start, juga tanpa `SEED_SAMPLE`; kategori lama tidak diubah.
 - Admin pertama dibuat dari `ADMIN_EMAIL` / `ADMIN_PASSWORD` bila belum ada admin.
 - Ubah skema di `src/lib/server/db/schema.ts`, lalu `npm run db:generate` untuk membuat migrasi baru.
 

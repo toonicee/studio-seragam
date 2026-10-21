@@ -19,6 +19,7 @@ export const load: PageServerLoad = async ({ cookies }) => {
 	const slides: HeroSlide[] = [
 		{
 			kicker: tr('hero.introKicker'),
+			icon: 'brand',
 			title: tr('hero.introTitle'),
 			text: tr('hero.introText'),
 			cta: { href: '/shop/katalog', label: tr('hero.introCta') },
@@ -32,14 +33,15 @@ export const load: PageServerLoad = async ({ cookies }) => {
 			const reached = poPhase(p.batch, now) === 'reached';
 			return {
 				kicker: reached ? tr('hero.reached') : tr('hero.closes', { date: fmtDayLong(p.batch!.closesAt, lang) }),
+				icon: reached ? 'check' : 'clock',
 				title: p.name,
 				text: p.summary,
-				meta: tr('hero.meta', { price: rupiah(p.price), n: p.batch!.collected, target: p.batch!.target }),
+				po: { price: rupiah(p.price), collected: p.batch!.collected, target: p.batch!.target },
 				cta: { href: `/shop/produk/${p.slug}`, label: tr('hero.cta') },
 				images: p.images
 					.filter((im) => !im.placeholder)
 					.slice(0, 2)
-					.map((im) => ({ src: im.src, alt: im.alt }))
+					.map((im) => ({ src: im.src, alt: im.alt, zoom: im.zoom }))
 			};
 		})
 	];
@@ -52,6 +54,6 @@ export const load: PageServerLoad = async ({ cookies }) => {
 		slides,
 		flash,
 		closingSoon: closingSoon.slice(0, 8),
-		latest: sortProducts(all, 'terbaru', now).slice(0, 8)
+		latest: sortProducts(all, 'terbaru', now).slice(0, 10)
 	};
 };

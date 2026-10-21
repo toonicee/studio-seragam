@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { LayoutProps } from './$types';
 	import ShopHeader from '$lib/components/shop/ShopHeader.svelte';
+	import CategoryStrip from '$lib/components/shop/CategoryStrip.svelte';
 	import TopBar from '$lib/components/shop/TopBar.svelte';
 	import ShopFooter from '$lib/components/shop/ShopFooter.svelte';
 	import CartSheet from '$lib/components/shop/CartSheet.svelte';
@@ -16,6 +17,7 @@
 	</a>
 	<TopBar waAdmin={data.waAdmin} />
 	<ShopHeader categories={data.categories} cartCount={data.cart.count} onOpenCart={() => (cartUi.open = true)} />
+	<CategoryStrip categories={data.categories} />
 	<main id="isi" class="flex-1">
 		{@render children()}
 	</main>

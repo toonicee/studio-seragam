@@ -47,7 +47,7 @@
 			<p class="text-xs font-semibold tracking-wider text-white/75 uppercase">{t('flash.endsIn')}</p>
 			<ol class="mt-2 flex items-start gap-2" aria-live="off">
 				{#each parts as part, i (i)}
-					<li class="grid w-16 justify-items-center rounded-lg bg-white py-2 text-brand shadow-sm md:w-[72px]">
+					<li class="grid w-16 justify-items-center rounded-lg bg-white py-2 text-brand shadow-sm md:w-18">
 						<span class="font-display text-3xl leading-none font-bold tabular-nums md:text-4xl">{pad(part.value)}</span>
 						<span class="mt-1 text-[11px] font-semibold text-ink-soft uppercase">{part.label}</span>
 					</li>
@@ -60,7 +60,7 @@
 				<div class="h-2 overflow-hidden rounded-full bg-white/25">
 					<div class="h-full rounded-full bg-white" style:width="{p.pct}%"></div>
 				</div>
-				<p class="mt-1.5 text-sm text-white/85">{t('flash.collected', { n: product.batch.collected, target: product.batch.target })}</p>
+				<p class="mt-1.5 text-sm text-white/85">{t('po.collected', { n: product.batch.collected, target: product.batch.target })}</p>
 			</div>
 		{/if}
 
@@ -74,7 +74,7 @@
 	</div>
 
 	{#if image}
-		<a href="/shop/produk/{product.slug}" class="relative block min-h-[260px] bg-surface md:min-h-full" tabindex="-1" aria-hidden="true">
+		<a href="/shop/produk/{product.slug}" class="relative block min-h-65 overflow-hidden bg-surface md:min-h-full" tabindex="-1" aria-hidden="true">
 			<img
 				src={image.src}
 				alt=""
@@ -83,6 +83,7 @@
 				loading="lazy"
 				class="absolute inset-0 size-full object-cover"
 				style:object-position={image.src.endsWith('.jpg') ? 'center 15%' : 'center 28%'}
+				style:scale={image.zoom}
 			/>
 		</a>
 	{/if}
