@@ -1,9 +1,12 @@
-import adapter from '@sveltejs/adapter-auto';
+import adapter from '@sveltejs/adapter-node';
 import { sveltekit } from '@sveltejs/kit/vite';
-import { defineConfig } from 'vite';
+import tailwindcss from '@tailwindcss/vite';
+import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
 	plugins: [
+		// Tailwind hanya dipakai toko (/shop) lewat src/shop.css; konfigurator tetap memakai app.css
+		tailwindcss(),
 		sveltekit({
 			alias: {
 				'$lib': 'src/lib',
@@ -15,10 +18,12 @@ export default defineConfig({
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
 
-			// adapter-auto only supports some environments, see https://svelte.dev/docs/kit/adapter-auto for a list.
-			// If your environment is not supported, or you settled on a specific environment, switch out the adapter.
-			// See https://svelte.dev/docs/kit/adapters for more information about adapters.
+			// Toko + konfigurator berjalan sebagai server Node di VPS (Docker), lihat Dockerfile
 			adapter: adapter()
 		})
-	]
+	],
+	test: {
+		include: ['src/**/*.test.ts'],
+		environment: 'node'
+	}
 });

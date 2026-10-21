@@ -1,0 +1,9 @@
+# HTTPS otomatis dari Let's Encrypt untuk domain di SHOP_DOMAIN
+{$SHOP_DOMAIN} {
+	encode zstd gzip
+
+	# Opsional: buka toko langsung saat membuka domain (konfigurator tetap di /?…)
+	# redir / /shop 302
+
+	reverse_proxy app:3000
+}

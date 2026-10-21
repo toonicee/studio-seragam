@@ -69,14 +69,85 @@ studio-seragam/
 │   │   └── types/
 │   │       └── uniform.ts            # Type definitions TypeScript
 │   └── routes/
-│       ├── +layout.ts                # Client-side render configuration (SSR disabled for WebGL)
-│       ├── +layout.svelte            # Layout wrapper & global toast
-│       ├── +page.svelte              # Halaman konfigurator utama
-│       └── design/[id]/+page.svelte  # Shared design loader dari Supabase
-├── .env.example                      # Template kredensial Supabase
+│       ├── (studio)/                 # Konfigurator (tanpa SSR karena WebGL)
+│       │   ├── +layout.svelte        # app.css, tema, & toast konfigurator
+│       │   ├── +page.svelte          # Halaman konfigurator utama
+│       │   ├── katalog/              # Katalog seragam
+│       │   └── design/[id]/          # Shared design loader dari Supabase
+│       └── shop/                     # Toko merchandise (SSR, Tailwind + shadcn-svelte)
+│           ├── (store)/              # Beranda, katalog, produk, keranjang, checkout, pesanan
+│           └── admin/                # Halaman admin toko
+├── drizzle/                          # Migrasi SQL database toko
+├── Dockerfile, docker-compose.yml, Caddyfile   # Deploy toko + konfigurator ke VPS
+├── .env.example                      # Template variabel lingkungan
 ├── package.json
 └── vite.config.ts
 ```
+
+---
+
+## 🛍️ Toko Merchandise (`/shop`)
+
+Toko merchandise Indah Expres khusus mitra dengan sistem **pre-order (PO)**, berjalan di aplikasi yang sama.
+
+- **Pembeli (tanpa akun):** katalog per kategori, halaman produk dengan progres PO, keranjang, checkout dengan
+  kode mitra + nomor WhatsApp, bayar lewat **QRIS statis GoPay Merchant** dengan kode unik 1–999, unggah bukti
+  bayar, dan halaman status pesanan lewat link unik (`/shop/pesanan/…`).
+- **Aturan PO:** tiap produk punya target dan deadline 23:59 WIB. Hanya pesanan yang dikonfirmasi admin yang
+  dihitung. Proses otomatis tiap jam menutup PO: target tercapai → produksi; tidak tercapai → pesanan batal
+  dan masuk daftar refund.
+- **Admin (`/shop/admin`):** dashboard, konfirmasi pembayaran, pesanan (kirim + resi, batal), produk & PO
+  (foto, ukuran, buka PO berikutnya, rekap ukuran, ekspor CSV), refund, mitra (impor CSV), dan pengaturan
+  (QRIS, nomor WhatsApp admin, batas bayar, ongkir, halaman info, kata sandi).
+- **Stack:** SvelteKit 3 + adapter-node, Tailwind v4 + shadcn-svelte, Swiper Element, Better Auth (admin),
+  Superforms + Zod, Drizzle ORM + SQLite, sharp, croner. Semua gratis dan berjalan di server sendiri.
+
+### Menjalankan toko secara lokal
+
+```bash
+cp .env.example .env      # isi BETTER_AUTH_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD
+npm install
+npm run dev               # buka http://localhost:5173/shop
+```
+
+- Database dibuat otomatis di `./data/shop.db` (migrasi berjalan saat server start).
+- `SEED_SAMPLE=1` mengisi katalog contoh; `SEED_DEMO_ORDERS=1` menambah mitra & pesanan contoh
+  (kode mitra uji: `DEMO`, WhatsApp `0812-3456-7890`). Jangan aktifkan data demo di server asli.
+- Admin pertama dibuat dari `ADMIN_EMAIL` / `ADMIN_PASSWORD` bila belum ada admin.
+- Ubah skema di `src/lib/server/db/schema.ts`, lalu `npm run db:generate` untuk membuat migrasi baru.
+
+### Tes
+
+```bash
+npm test             # unit test logika PO, checkout, dan proses otomatis (Vitest)
+npx playwright install chromium   # sekali saja
+npm run test:e2e     # alur pembeli & admin di build produksi (Playwright)
+```
+
+### Deploy ke VPS (Docker)
+
+Butuh VPS Linux dengan Docker + Docker Compose, dan domain (mis. `shop.indahexpres.com`) yang sudah
+mengarah ke IP VPS. Port 80 dan 443 harus terbuka.
+
+```bash
+git clone <repo> studio-seragam && cd studio-seragam
+cp .env.example .env      # isi SHOP_DOMAIN, BETTER_AUTH_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD
+                          # SEED_SAMPLE=1 bila ingin mulai dari katalog contoh, SEED_DEMO_ORDERS=0
+docker compose up -d --build
+```
+
+Caddy mengurus HTTPS (Let's Encrypt) otomatis. Setelah jalan:
+
+1. Masuk ke `https://SHOP_DOMAIN/shop/admin`, lalu ganti kata sandi di **Pengaturan → Akun**.
+2. **Pengaturan → Pembayaran:** unggah gambar QRIS statis GoPay Merchant dan isi nomor WhatsApp admin.
+3. **Mitra:** tambah mitra atau impor CSV (`nama,kode,whatsapp,kota`).
+4. **Produk & PO:** ganti foto dan harga contoh, lalu buka PO.
+
+**Update aplikasi:** `git pull && docker compose up -d --build`. Database dan unggahan tersimpan di volume
+`shop-data`, jadi tidak hilang.
+
+**Backup:** salin isi volume, mis.
+`docker run --rm -v studio-seragam_shop-data:/data -v "$PWD":/backup alpine tar czf /backup/toko-$(date +%F).tgz -C /data .`
 
 ---
 

@@ -21,3 +21,9 @@ Thumbs.db
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Toko: database & unggahan lokal, hasil tes
+/data
+/test-data
+/test-results
+/playwright-report

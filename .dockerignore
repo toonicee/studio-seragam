@@ -1,0 +1,14 @@
+node_modules
+build
+.svelte-kit
+data
+test-data
+test-results
+playwright-report
+.env
+.env.*
+!.env.example
+.git
+.vercel
+*.log
+.DS_Store
