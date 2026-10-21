@@ -1,5 +1,6 @@
 import { asc, eq } from 'drizzle-orm';
 import { CLIENT_CONFIG } from '$lib/client-config';
+import type { Lang } from '$lib/shop/i18n';
 import type { Conn as DB } from '../db';
 import { pages, settings, shippingZones } from '../db/schema';
 
@@ -45,8 +46,11 @@ export function listZones(db: DB, includeInactive = false) {
 	return includeInactive ? rows : rows.filter((z) => z.active);
 }
 
-export function getPage(db: DB, slug: string) {
-	return db.select().from(pages).where(eq(pages.slug, slug)).get() ?? null;
+export function getPage(db: DB, slug: string, lang: Lang = 'id') {
+	const p = db.select().from(pages).where(eq(pages.slug, slug)).get();
+	if (!p) return null;
+	const en = lang === 'en' && p.bodyEn;
+	return { slug: p.slug, title: en ? p.titleEn || p.title : p.title, body: en ? p.bodyEn : p.body };
 }
 
 export function listPages(db: DB) {

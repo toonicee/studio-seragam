@@ -2,12 +2,12 @@
 import type { Cookies } from '@sveltejs/kit';
 import { inArray } from 'drizzle-orm';
 import { MAX_QTY } from '$lib/shop/constants';
+import type { Lang } from '$lib/shop/i18n';
 import { isOrderable } from '$lib/shop/po';
-import { fmtDayShort } from '$lib/shop/format';
-import type { CartLineView, CartView } from '$lib/shop/types';
+import type { CartLineView, CartProblem, CartView } from '$lib/shop/types';
 import type { Conn as DB } from '../db';
 import { products } from '../db/schema';
-import { collectedByBatch, latestBatches, toBatchView } from './catalog';
+import { collectedByBatch, latestBatches, pick, toBatchView } from './catalog';
 
 export type CartLine = { productId: number; size: string | null; qty: number };
 
@@ -68,7 +68,7 @@ export function removeLine(lines: CartLine[], key: string): CartLine[] {
 }
 
 /** Lengkapi isi keranjang dengan data produk & PO terbaru */
-export function resolveCart(db: DB, lines: CartLine[], now: number): CartView {
+export function resolveCart(db: DB, lines: CartLine[], now: number, lang: Lang = 'id'): CartView {
 	const ids = [...new Set(lines.map((l) => l.productId))];
 	const prods = ids.length ? db.select().from(products).where(inArray(products.id, ids)).all() : [];
 	const byId = new Map(prods.map((p) => [p.id, p]));
@@ -84,17 +84,16 @@ export function resolveCart(db: DB, lines: CartLine[], now: number): CartView {
 		if (!p) continue;
 		const b = batches.get(p.id);
 		const batch = b ? toBatchView(b, collected) : null;
-		let problem: string | null = null;
-		if (!p.active) problem = 'Produk tidak dijual lagi';
-		else if (!batch) problem = 'PO belum dibuka';
-		else if (!isOrderable(batch, now)) problem = `PO ditutup ${fmtDayShort(batch.closesAt)}`;
-		else if (p.sizes.length ? !l.size || !p.sizes.includes(l.size) : l.size !== null)
-			problem = 'Ukuran tidak tersedia, hapus lalu pilih ulang';
+		let problem: CartProblem | null = null;
+		if (!p.active) problem = 'inactive';
+		else if (!batch) problem = 'no_po';
+		else if (!isOrderable(batch, now)) problem = 'closed';
+		else if (p.sizes.length ? !l.size || !p.sizes.includes(l.size) : l.size !== null) problem = 'size';
 		out.push({
 			key: lineKey(l),
 			productId: p.id,
 			slug: p.slug,
-			name: p.name,
+			name: pick(lang, p.name, p.nameEn),
 			image: p.images[0] ?? null,
 			price: p.price,
 			size: l.size,

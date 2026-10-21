@@ -2,49 +2,62 @@
 import { z } from 'zod';
 import { INFO_PAGES } from './constants';
 import { normalizePhone } from './format';
+import { translate, type Lang } from './i18n';
 
-const phone = z
-	.string()
-	.trim()
-	.min(1, 'Isi nomor WhatsApp')
-	.refine((v) => normalizePhone(v) !== null, 'Nomor WhatsApp tidak valid (contoh: 0812 3456 7890)');
+const phoneFor = (lang: Lang) =>
+	z
+		.string()
+		.trim()
+		.min(1, translate(lang, 'val.phoneEmpty'))
+		.refine((v) => normalizePhone(v) !== null, translate(lang, 'val.phone'));
 
-const optionalEmail = z
-	.string()
-	.trim()
-	.max(120)
-	.refine((v) => v === '' || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v), 'Format email tidak valid');
+const phone = phoneFor('id');
 
 const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Pilih tanggal');
 
-export const checkoutSchema = z.object({
-	partnerCode: z
-		.string()
-		.trim()
-		.min(2, 'Isi kode mitra')
-		.max(32)
-		.transform((v) => v.toUpperCase()),
-	phone,
-	name: z.string().trim().min(2, 'Isi nama penerima').max(80),
-	email: optionalEmail,
-	address: z.string().trim().min(8, 'Isi alamat lengkap (jalan, nomor, RT/RW, kelurahan)').max(300),
-	city: z.string().trim().min(2, 'Isi kota/kabupaten').max(80),
-	postalCode: z
-		.string()
-		.trim()
-		.refine((v) => v === '' || /^\d{5}$/.test(v), 'Kode pos 5 angka'),
-	zoneId: z.number().int().positive('Pilih tarif ongkir'),
-	note: z.string().trim().max(300)
-});
+function makeCheckoutSchema(lang: Lang) {
+	const m = (k: Parameters<typeof translate>[1]) => translate(lang, k);
+	return z.object({
+		partnerCode: z
+			.string()
+			.trim()
+			.min(2, m('val.partnerCode'))
+			.max(32)
+			.transform((v) => v.toUpperCase()),
+		phone: phoneFor(lang),
+		name: z.string().trim().min(2, m('val.name')).max(80),
+		email: z
+			.string()
+			.trim()
+			.max(120)
+			.refine((v) => v === '' || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v), m('val.email')),
+		address: z.string().trim().min(8, m('val.address')).max(300),
+		city: z.string().trim().min(2, m('val.city')).max(80),
+		postalCode: z
+			.string()
+			.trim()
+			.refine((v) => v === '' || /^\d{5}$/.test(v), m('val.postal')),
+		zoneId: z.number().int().positive(m('val.zone')),
+		note: z.string().trim().max(300)
+	});
+}
 
-export const lookupSchema = z.object({
-	code: z
-		.string()
-		.trim()
-		.min(4, 'Isi nomor pesanan')
-		.transform((v) => v.toUpperCase()),
-	phone
-});
+function makeLookupSchema(lang: Lang) {
+	return z.object({
+		code: z
+			.string()
+			.trim()
+			.min(4, translate(lang, 'val.orderCode'))
+			.transform((v) => v.toUpperCase()),
+		phone: phoneFor(lang)
+	});
+}
+
+/** Skema per bahasa (pesan validasi mengikuti bahasa toko) */
+export const checkoutSchemas = { id: makeCheckoutSchema('id'), en: makeCheckoutSchema('en') };
+export const lookupSchemas = { id: makeLookupSchema('id'), en: makeLookupSchema('en') };
+export const checkoutSchema = checkoutSchemas.id;
+export const lookupSchema = lookupSchemas.id;
 
 // ── Admin ──
 
@@ -76,6 +89,10 @@ export const productSchema = z.object({
 	summary: z.string().trim().max(200),
 	description: z.string().trim().max(4000),
 	details: z.string().trim().max(4000),
+	nameEn: z.string().trim().max(120),
+	summaryEn: z.string().trim().max(200),
+	descriptionEn: z.string().trim().max(4000),
+	detailsEn: z.string().trim().max(4000),
 	price: z.number().int().min(0, 'Harga tidak valid').max(100_000_000),
 	/** "S, M, L, XL" — kosong = satu ukuran */
 	sizes: z.string().trim().max(200),
@@ -126,7 +143,9 @@ const pageSlugs = INFO_PAGES.map((p) => p.slug) as [string, ...string[]];
 export const pageSchema = z.object({
 	slug: z.enum(pageSlugs),
 	title: z.string().trim().min(2).max(80),
-	body: z.string().max(20000)
+	body: z.string().max(20000),
+	titleEn: z.string().trim().max(80),
+	bodyEn: z.string().max(20000)
 });
 
 export const rejectSchema = z.object({

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Check from '@lucide/svelte/icons/check';
 	import { fmtDay, fmtDateTime } from '$lib/shop/format';
+	import { lang, t } from '$lib/shop/i18n.svelte';
 	import { shipEstimate } from '$lib/shop/po';
 	import type { OrderView } from '$lib/shop/types';
 	import { cn } from '$lib/utils';
@@ -15,34 +16,41 @@
 	);
 	const eta = $derived(Math.max(0, ...active.map((i) => shipEstimate(i.batch.closesAt, i.batch.productionDays))));
 
-	const steps = $derived([
-		{ label: 'Pesanan dibuat', done: true, note: fmtDateTime(order.createdAt) },
-		{
-			label: 'Pembayaran dikonfirmasi',
-			done: !!order.paidAt,
-			note: order.paidAt
-				? fmtDateTime(order.paidAt)
-				: order.status === 'pending_confirmation'
-					? 'Bukti diterima, menunggu admin'
-					: 'Menunggu pembayaran'
-		},
-		{
-			label: 'PO ditutup',
-			done: allClosed,
-			note: lastClose ? (allClosed ? 'Target sudah direkap' : `Paling lambat ${fmtDay(lastClose)}`) : ''
-		},
-		{ label: 'Produksi', done: allProduced, note: allProduced ? 'Target tercapai, sedang dibuat' : 'Mulai setelah target tercapai' },
-		{
-			label: 'Dikirim',
-			done: order.status === 'shipped',
-			note: order.shippedAt ? `${fmtDateTime(order.shippedAt)} · resi ${order.trackingNo}` : eta ? `Estimasi ${fmtDay(eta)}` : ''
-		}
-	]);
+	const steps = $derived.by(() => {
+		const l = lang();
+		return [
+			{ label: t('tl.created'), done: true, note: fmtDateTime(order.createdAt, l) },
+			{
+				label: t('tl.confirmed'),
+				done: !!order.paidAt,
+				note: order.paidAt
+					? fmtDateTime(order.paidAt, l)
+					: order.status === 'pending_confirmation'
+						? t('tl.proofWaiting')
+						: t('tl.awaitingPayment')
+			},
+			{
+				label: t('tl.closed'),
+				done: allClosed,
+				note: lastClose ? (allClosed ? t('tl.closedDone') : t('tl.closesBy', { date: fmtDay(lastClose, l) })) : ''
+			},
+			{ label: t('tl.production'), done: allProduced, note: allProduced ? t('tl.productionDone') : t('tl.productionWait') },
+			{
+				label: t('tl.shipped'),
+				done: order.status === 'shipped',
+				note: order.shippedAt
+					? t('tl.shippedNote', { at: fmtDateTime(order.shippedAt, l), no: order.trackingNo ?? '' })
+					: eta
+						? t('tl.eta', { date: fmtDay(eta, l) })
+						: ''
+			}
+		];
+	});
 	const current = $derived(steps.findIndex((s) => !s.done));
 </script>
 
 <ol class="relative grid gap-0">
-	{#each steps as s, i (s.label)}
+	{#each steps as s, i (i)}
 		<li class="relative flex gap-4 pb-6 last:pb-0">
 			{#if i < steps.length - 1}
 				<span class={cn('absolute top-8 bottom-0 left-[15px] w-0.5', s.done ? 'bg-success' : 'bg-border')}></span>

@@ -3,13 +3,14 @@
 	import ShieldCheck from '@lucide/svelte/icons/shield-check';
 	import Truck from '@lucide/svelte/icons/truck';
 	import BadgeCheck from '@lucide/svelte/icons/badge-check';
+	import { t } from '$lib/shop/i18n.svelte';
 
-	const items = [
-		{ icon: QrCode, title: 'Bayar pakai QRIS', text: 'Semua e-wallet & m-banking' },
-		{ icon: ShieldCheck, title: 'Dana kembali 100%', text: 'Jika target PO tidak tercapai' },
-		{ icon: Truck, title: 'Dikirim Indah Expres', text: 'Resi tampil di halaman pesanan' },
-		{ icon: BadgeCheck, title: 'Khusus mitra', text: 'Checkout dengan kode mitra' }
-	];
+	const items = $derived([
+		{ icon: QrCode, title: t('usp.qris'), text: t('usp.qrisText') },
+		{ icon: ShieldCheck, title: t('usp.refund'), text: t('usp.refundText') },
+		{ icon: Truck, title: t('usp.ship'), text: t('usp.shipText') },
+		{ icon: BadgeCheck, title: t('usp.partner'), text: t('usp.partnerText') }
+	]);
 </script>
 
 <ul class="grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border lg:grid-cols-4">

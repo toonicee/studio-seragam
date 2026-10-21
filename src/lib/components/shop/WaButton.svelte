@@ -1,15 +1,17 @@
 <script lang="ts">
-	import MessageCircle from '@lucide/svelte/icons/message-circle';
+	import WhatsAppIcon from './WhatsAppIcon.svelte';
+	import { t } from '$lib/shop/i18n.svelte';
 	import { waLink } from '$lib/shop/wa';
 	import { cn } from '$lib/utils';
 
 	let {
 		phone,
 		text,
-		label = 'Chat admin via WhatsApp',
+		label,
 		size = 'md',
 		class: className = ''
 	}: { phone: string; text: string; label?: string; size?: 'sm' | 'md'; class?: string } = $props();
+	const text_ = $derived(label ?? t('common.chatAdmin'));
 </script>
 
 <a
@@ -22,6 +24,6 @@
 		className
 	)}
 >
-	<MessageCircle class={size === 'sm' ? 'size-3.5' : 'size-4'} />
-	{label}
+	<WhatsAppIcon class={size === 'sm' ? 'size-3.5' : 'size-4'} />
+	{text_}
 </a>

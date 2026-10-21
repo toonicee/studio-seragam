@@ -1,17 +1,18 @@
 /** Format angka, tanggal, dan nomor untuk toko. Semua tanggal ditampilkan dalam WIB. */
+import type { Lang } from './i18n';
 
 export const TZ = 'Asia/Jakarta';
 
-/** "Rp130.900" — sama dengan format harga di konfigurator */
+/** "Rp130.900" — sama dengan format harga di konfigurator (juga dipakai di versi English) */
 export const rupiah = (n: number | null | undefined) =>
 	'Rp' + Math.round(n ?? 0).toLocaleString('id-ID');
 
 const fmtCache = new Map<string, Intl.DateTimeFormat>();
-function dtf(opts: Intl.DateTimeFormatOptions) {
-	const key = JSON.stringify(opts);
+function dtf(opts: Intl.DateTimeFormatOptions, lang: Lang = 'id') {
+	const key = lang + JSON.stringify(opts);
 	let f = fmtCache.get(key);
 	if (!f) {
-		f = new Intl.DateTimeFormat('id-ID', { timeZone: TZ, ...opts });
+		f = new Intl.DateTimeFormat(lang === 'en' ? 'en-GB' : 'id-ID', { timeZone: TZ, ...opts });
 		fmtCache.set(key, f);
 	}
 	return f;
@@ -25,21 +26,23 @@ export function fmtTime(ms: number) {
 	return `${h}:${m}`;
 }
 
-/** "31 Okt 2026" */
-export const fmtDay = (ms: number) => dtf({ day: 'numeric', month: 'short', year: 'numeric' }).format(ms);
+/** "31 Okt 2026" / "31 Oct 2026" */
+export const fmtDay = (ms: number, lang: Lang = 'id') =>
+	dtf({ day: 'numeric', month: 'short', year: 'numeric' }, lang).format(ms);
 
-/** "Jum, 31 Okt 2026" */
-export const fmtDayLong = (ms: number) =>
-	dtf({ weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }).format(ms);
+/** "Jum, 31 Okt 2026" / "Fri, 31 Oct 2026" */
+export const fmtDayLong = (ms: number, lang: Lang = 'id') =>
+	dtf({ weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }, lang).format(ms);
 
-/** "31 Okt" */
-export const fmtDayShort = (ms: number) => dtf({ day: 'numeric', month: 'short' }).format(ms);
+/** "31 Okt" / "31 Oct" */
+export const fmtDayShort = (ms: number, lang: Lang = 'id') =>
+	dtf({ day: 'numeric', month: 'short' }, lang).format(ms);
 
 /** "Jum, 31 Okt 2026 · 23:59 WIB" */
-export const fmtDeadline = (ms: number) => `${fmtDayLong(ms)} · ${fmtTime(ms)} WIB`;
+export const fmtDeadline = (ms: number, lang: Lang = 'id') => `${fmtDayLong(ms, lang)} · ${fmtTime(ms)} WIB`;
 
 /** "21 Okt 2026, 14:05 WIB" */
-export const fmtDateTime = (ms: number) => `${fmtDay(ms)}, ${fmtTime(ms)} WIB`;
+export const fmtDateTime = (ms: number, lang: Lang = 'id') => `${fmtDay(ms, lang)}, ${fmtTime(ms)} WIB`;
 
 /** "0812-3456-7890" dari "6281234567890" */
 export function fmtPhone(phone: string) {

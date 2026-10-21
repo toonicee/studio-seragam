@@ -50,6 +50,9 @@ export interface ProductDetailView extends ProductCardView {
 	productionDays: number;
 }
 
+/** Alasan item keranjang tidak bisa dipesan; teksnya di i18n `cart.problem.*` */
+export type CartProblem = 'inactive' | 'no_po' | 'closed' | 'size';
+
 export interface CartLineView {
 	key: string;
 	productId: number;
@@ -62,8 +65,7 @@ export interface CartLineView {
 	lineTotal: number;
 	batch: BatchView | null;
 	orderable: boolean;
-	/** Alasan item tidak bisa dipesan (PO ditutup, produk dihapus, …) */
-	problem: string | null;
+	problem: CartProblem | null;
 }
 
 export interface CartView {

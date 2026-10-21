@@ -11,7 +11,7 @@ import { Cron } from 'croner';
 import { ensureAdmin } from '../auth';
 import { getDb, runMigrations } from '../db';
 import { runScheduledTasks } from './scheduler';
-import { seedDemo, seedSample } from './seed';
+import { backfillEnglish, seedDemo, seedSample } from './seed';
 
 export function runJob(source: string) {
 	try {
@@ -38,6 +38,7 @@ export async function bootstrap() {
 
 	const now = new Date();
 	if (SEED_SAMPLE) seedSample(db, now);
+	backfillEnglish(db);
 	if (SEED_DEMO_ORDERS) await seedDemo(db, now);
 	if (await ensureAdmin(ADMIN_EMAIL, ADMIN_PASSWORD)) {
 		console.info(`[toko] admin pertama dibuat: ${ADMIN_EMAIL}`);

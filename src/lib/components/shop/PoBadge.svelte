@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { t } from '$lib/shop/i18n.svelte';
 	import { PHASE_META, type PoPhase } from '$lib/shop/po';
 	import { TONE_CLASS } from '$lib/shop/status';
 	import { cn } from '$lib/utils';
@@ -14,5 +15,5 @@
 		className
 	)}
 >
-	{meta.badge}
+	{t(`phase.${phase}`)}
 </span>

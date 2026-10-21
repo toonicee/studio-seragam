@@ -135,6 +135,20 @@ test('admin mengirim pesanan yang PO-nya sudah diproduksi', async ({ page }) => 
 	await expect(page.getByText('IEX123456789')).toBeVisible();
 });
 
+test('bahasa bisa diganti ke English dan kembali ke Indonesia', async ({ page }) => {
+	await page.goto('/shop/produk/kaos-indah-expres', { waitUntil: 'networkidle' });
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Kaos Indah Expres');
+	await page.getByTestId('lang-en').click();
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Indah Expres T-Shirt');
+	await expect(page.getByRole('link', { name: 'All products' }).first()).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Pre-order' })).toBeVisible();
+	// Setelah dimuat ulang tetap English (cookie) dan atribut lang ikut berubah
+	await page.reload();
+	await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+	await page.getByTestId('lang-id').click();
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Kaos Indah Expres');
+});
+
 test('konfigurator tetap jalan dan gaya toko tidak bocor', async ({ page }) => {
 	await page.goto('/', { waitUntil: 'networkidle' });
 	await expect(page.locator('canvas').first()).toBeVisible();

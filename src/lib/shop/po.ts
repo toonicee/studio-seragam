@@ -85,41 +85,14 @@ export function poPhase(batch: BatchLike | null | undefined, now: number): PoPha
 
 export type Tone = 'brand' | 'success' | 'warning' | 'muted' | 'danger' | 'ink';
 
-export const PHASE_META: Record<
-	PoPhase,
-	{ badge: string; tone: Tone; orderable: boolean; reason: string | null }
-> = {
-	none: {
-		badge: 'Segera hadir',
-		tone: 'muted',
-		orderable: false,
-		reason: 'PO untuk produk ini belum dibuka. Pantau terus, ya.'
-	},
-	open: { badge: 'Pre-order', tone: 'brand', orderable: true, reason: null },
-	closing: { badge: 'Segera ditutup', tone: 'warning', orderable: true, reason: null },
-	reached: { badge: 'Target tercapai', tone: 'success', orderable: true, reason: null },
-	closed: {
-		badge: 'PO ditutup',
-		tone: 'muted',
-		orderable: false,
-		reason: 'PO sudah ditutup dan sedang direkap. Hasilnya diumumkan sebentar lagi.'
-	},
-	production: {
-		badge: 'Sedang diproduksi',
-		tone: 'ink',
-		orderable: false,
-		reason: 'Target tercapai dan pesanan sedang diproduksi. PO berikutnya menyusul.'
-	},
-	done: {
-		badge: 'PO selesai',
-		tone: 'muted',
-		orderable: false,
-		reason: 'PO ini sudah selesai dikirim. PO berikutnya menyusul.'
-	},
-	failed: {
-		badge: 'Target tidak tercapai',
-		tone: 'danger',
-		orderable: false,
-		reason: 'Target PO tidak tercapai. Semua pesanan dibatalkan dan dana dikembalikan 100%.'
-	}
+/** Warna badge & boleh-tidaknya dipesan per tahap. Teks badge/alasan ada di i18n (`phase.*`, `reason.*`) */
+export const PHASE_META: Record<PoPhase, { tone: Tone; orderable: boolean; hasReason: boolean }> = {
+	none: { tone: 'muted', orderable: false, hasReason: true },
+	open: { tone: 'brand', orderable: true, hasReason: false },
+	closing: { tone: 'warning', orderable: true, hasReason: false },
+	reached: { tone: 'success', orderable: true, hasReason: false },
+	closed: { tone: 'muted', orderable: false, hasReason: true },
+	production: { tone: 'ink', orderable: false, hasReason: true },
+	done: { tone: 'muted', orderable: false, hasReason: true },
+	failed: { tone: 'danger', orderable: false, hasReason: true }
 };

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { rupiah } from '$lib/shop/format';
+	import { t } from '$lib/shop/i18n.svelte';
 	import { poPhase } from '$lib/shop/po';
 	import type { ProductCardView } from '$lib/shop/types';
 	import PoBadge from './PoBadge.svelte';
@@ -43,8 +44,8 @@
 		{/if}
 		<PoBadge {phase} class="absolute top-2.5 left-2.5" />
 		{#if first?.placeholder}
-			<span class="absolute top-2.5 right-2.5 rounded-[3px] bg-white/90 px-2 py-1 text-[11px] font-medium text-muted-foreground">
-				Foto menyusul
+			<span class="absolute top-2.5 right-2.5 hidden rounded-[3px] bg-white/90 px-2 py-1 text-[11px] font-medium text-muted-foreground md:inline-flex">
+				{t('common.photoSoon')}
 			</span>
 		{/if}
 	</div>

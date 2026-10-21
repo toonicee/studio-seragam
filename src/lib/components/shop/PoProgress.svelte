@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { Progress } from '$lib/components/ui/progress';
-	import { poPhase, progress, timeLeft } from '$lib/shop/po';
+	import { timeLeftLabel } from '$lib/shop/i18n';
+	import { lang, t } from '$lib/shop/i18n.svelte';
+	import { poPhase, progress } from '$lib/shop/po';
 	import type { BatchView } from '$lib/shop/types';
 	import { cn } from '$lib/utils';
 
@@ -19,15 +21,15 @@
 			case 'open':
 			case 'closing':
 			case 'reached':
-				return timeLeft(batch.closesAt, now).label;
+				return timeLeftLabel(lang(), batch.closesAt, now);
 			case 'closed':
-				return 'Menunggu rekap';
+				return t('progress.tallying');
 			case 'production':
-				return 'Diproduksi';
+				return t('progress.production');
 			case 'done':
-				return 'Selesai';
+				return t('progress.done');
 			case 'failed':
-				return 'Tidak tercapai';
+				return t('progress.failed');
 			default:
 				return '';
 		}
@@ -52,7 +54,7 @@
 		<Progress
 			value={p.pct}
 			max={100}
-			aria-label="Progres PO {batch.collected} dari {batch.target} pcs"
+			aria-label={t('progress.aria', { n: batch.collected, target: batch.target })}
 			class={cn(
 				'mt-1.5',
 				size === 'lg' ? 'h-2.5' : 'h-1.5',

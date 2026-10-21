@@ -17,6 +17,7 @@
 	import { cartUi } from '$lib/components/shop/cart-ui.svelte';
 	import { MAX_QTY } from '$lib/shop/constants';
 	import { fmtDay, fmtDeadline, rupiah } from '$lib/shop/format';
+	import { lang, t } from '$lib/shop/i18n.svelte';
 	import { PHASE_META, poPhase, shipEstimate } from '$lib/shop/po';
 	import type { PageProps } from './$types';
 
@@ -50,7 +51,7 @@
 </script>
 
 <svelte:head>
-	<title>{product.name} — Toko Indah Expres</title>
+	<title>{product.name} — {t('meta.suffix')}</title>
 	<meta name="description" content={product.summary || product.description} />
 	{@html `<script type="application/ld+json">${jsonLd}</` + 'script>'}
 </svelte:head>
@@ -58,7 +59,7 @@
 <div class="mx-auto max-w-7xl px-4 pt-6 pb-28 md:pb-0">
 	<Breadcrumb.Root>
 		<Breadcrumb.List>
-			<Breadcrumb.Item><Breadcrumb.Link href="/shop">Beranda</Breadcrumb.Link></Breadcrumb.Item>
+			<Breadcrumb.Item><Breadcrumb.Link href="/shop">{t('common.home')}</Breadcrumb.Link></Breadcrumb.Item>
 			<Breadcrumb.Separator />
 			<Breadcrumb.Item>
 				<Breadcrumb.Link href="/shop/katalog/{product.category.slug}">{product.category.name}</Breadcrumb.Link>
@@ -78,7 +79,7 @@
 			<h1 class="display mt-2 text-[40px] md:text-[52px]">{product.name}</h1>
 			<p class="mt-2 text-muted-foreground">{product.summary}</p>
 			<p class="mt-4 font-display text-4xl font-bold">{rupiah(product.price)}</p>
-			<p class="mt-1 text-xs text-muted-foreground">Harga per pcs, sudah termasuk logo. Belum termasuk ongkir.</p>
+			<p class="mt-1 text-xs text-muted-foreground">{t('product.priceNote')}</p>
 
 			<div class="mt-6">
 				<PoPanel batch={product.batch} now={data.now} />
@@ -91,7 +92,7 @@
 				class="mt-6 space-y-5"
 				use:enhance={({ cancel }) => {
 					if (needsSize && !size) {
-						toast.error('Pilih ukuran dulu');
+						toast.error(t('product.pickSize'));
 						cancel();
 						return;
 					}
@@ -101,9 +102,9 @@
 						if (result.type === 'success') {
 							await update({ reset: false });
 							cartUi.open = true;
-							toast.success(`${product.name}${size ? ` (${size})` : ''} masuk keranjang`);
+							toast.success(t('product.added', { name: `${product.name}${size ? ` (${size})` : ''}` }));
 						} else if (result.type === 'failure') {
-							toast.error(String(result.data?.message ?? 'Gagal menambahkan ke keranjang'));
+							toast.error(String(result.data?.message ?? t('product.addFailed')));
 						} else {
 							await update();
 						}
@@ -116,7 +117,7 @@
 				{#if needsSize}
 					<fieldset>
 						<div class="mb-2 flex items-center justify-between">
-							<legend class="text-sm font-semibold">Ukuran{size ? `: ${size}` : ''}</legend>
+							<legend class="text-sm font-semibold">{size ? t('product.sizeSelected', { size }) : t('product.size')}</legend>
 							{#if product.sizeChart.length}
 								<SizeChart rows={product.sizeChart} name={product.name} />
 							{/if}
@@ -127,7 +128,7 @@
 							variant="outline"
 							spacing={2}
 							class="flex flex-wrap gap-2"
-							aria-label="Pilih ukuran"
+							aria-label={t('product.chooseSize')}
 							disabled={!orderable}
 						>
 							{#each product.sizes as s (s)}
@@ -141,14 +142,14 @@
 						</ToggleGroup.Root>
 					</fieldset>
 				{:else}
-					<p class="text-sm"><span class="font-semibold">Ukuran:</span> satu ukuran</p>
+					<p class="text-sm"><span class="font-semibold">{t('product.sizeLabel')}</span> {t('product.oneSize')}</p>
 				{/if}
 
 				<div class="flex items-end gap-3">
 					<div>
-						<label for="qty" class="mb-2 block text-sm font-semibold">Jumlah</label>
+						<label for="qty" class="mb-2 block text-sm font-semibold">{t('product.qty')}</label>
 						<div class="flex h-12 items-center rounded-md border">
-							<button type="button" class="grid h-full w-11 place-items-center hover:bg-muted disabled:opacity-40" aria-label="Kurangi" disabled={qty <= 1 || !orderable} onclick={() => (qty = Math.max(1, qty - 1))}>
+							<button type="button" class="grid h-full w-11 place-items-center hover:bg-muted disabled:opacity-40" aria-label={t('common.decrease')} disabled={qty <= 1 || !orderable} onclick={() => (qty = Math.max(1, qty - 1))}>
 								<Minus class="size-4" />
 							</button>
 							<input
@@ -162,30 +163,30 @@
 								disabled={!orderable}
 								class="h-full w-12 border-x text-center font-semibold tabular-nums outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
 							/>
-							<button type="button" class="grid h-full w-11 place-items-center hover:bg-muted disabled:opacity-40" aria-label="Tambah" disabled={qty >= MAX_QTY || !orderable} onclick={() => (qty = Math.min(MAX_QTY, qty + 1))}>
+							<button type="button" class="grid h-full w-11 place-items-center hover:bg-muted disabled:opacity-40" aria-label={t('common.increase')} disabled={qty >= MAX_QTY || !orderable} onclick={() => (qty = Math.min(MAX_QTY, qty + 1))}>
 								<Plus class="size-4" />
 							</button>
 						</div>
 					</div>
 					<Button type="submit" size="lg" class="h-12 flex-1 text-base font-semibold" disabled={!orderable || submitting}>
 						<ShoppingBag class="size-5" />
-						{orderable ? 'Pesan (PO)' : PHASE_META[phase].badge}
+						{orderable ? t('product.order') : t(`phase.${phase}`)}
 					</Button>
 				</div>
 				{#if orderable && product.batch}
 					<ul class="grid gap-1.5 text-sm text-muted-foreground">
-						<li class="flex gap-2"><Check class="mt-0.5 size-4 shrink-0 text-success" />Bayar lunas lewat QRIS, dana kembali 100% jika PO gagal</li>
-						<li class="flex gap-2"><Check class="mt-0.5 size-4 shrink-0 text-success" />Pesan sebelum {fmtDeadline(product.batch.closesAt)}</li>
-						<li class="flex gap-2"><Check class="mt-0.5 size-4 shrink-0 text-success" />Ukuran tidak bisa ditukar setelah PO ditutup</li>
+						<li class="flex gap-2"><Check class="mt-0.5 size-4 shrink-0 text-success" />{t('product.check1')}</li>
+						<li class="flex gap-2"><Check class="mt-0.5 size-4 shrink-0 text-success" />{t('product.check2', { deadline: fmtDeadline(product.batch.closesAt, lang()) })}</li>
+						<li class="flex gap-2"><Check class="mt-0.5 size-4 shrink-0 text-success" />{t('product.check3')}</li>
 					</ul>
 				{/if}
 			</form>
 
 			<Tabs.Root value="deskripsi" class="mt-10">
 				<Tabs.List variant="line" class="w-full justify-start gap-6 border-b">
-					<Tabs.Trigger value="deskripsi" class="px-0 text-sm font-semibold">Deskripsi</Tabs.Trigger>
-					<Tabs.Trigger value="detail" class="px-0 text-sm font-semibold">Detail produk</Tabs.Trigger>
-					<Tabs.Trigger value="kirim" class="px-0 text-sm font-semibold">Pengiriman & PO</Tabs.Trigger>
+					<Tabs.Trigger value="deskripsi" class="px-0 text-sm font-semibold">{t('product.tabDesc')}</Tabs.Trigger>
+					<Tabs.Trigger value="detail" class="px-0 text-sm font-semibold">{t('product.tabDetails')}</Tabs.Trigger>
+					<Tabs.Trigger value="kirim" class="px-0 text-sm font-semibold">{t('product.tabShipping')}</Tabs.Trigger>
 				</Tabs.List>
 				<Tabs.Content value="deskripsi" class="pt-4 leading-relaxed text-ink-soft">
 					<p>{product.description}</p>
@@ -200,14 +201,17 @@
 				<Tabs.Content value="kirim" class="space-y-3 pt-4 text-sm leading-relaxed text-ink-soft">
 					{#if product.batch}
 						<p>
-							PO ditutup <b>{fmtDeadline(product.batch.closesAt)}</b>. Jika target {product.batch.target} pcs tercapai,
-							produk diproduksi sekitar {product.batch.productionDays} hari dan diperkirakan dikirim
-							<b>{fmtDay(shipEstimate(product.batch.closesAt, product.batch.productionDays))}</b> lewat Indah Expres.
+							{t('product.shipText', {
+								deadline: fmtDeadline(product.batch.closesAt, lang()),
+								target: product.batch.target,
+								days: product.batch.productionDays,
+								eta: fmtDay(shipEstimate(product.batch.closesAt, product.batch.productionDays), lang())
+							})}
 						</p>
 					{/if}
-					<p>Jika target tidak tercapai, pesanan dibatalkan dan dana dikembalikan 100%, termasuk kode unik.</p>
-					<p>Pesanan berisi beberapa produk dikirim sekaligus setelah semuanya selesai diproduksi.</p>
-					<a href="/shop/info/cara-kerja-po" class="inline-block font-semibold text-brand hover:underline">Cara kerja PO →</a>
+					<p>{t('product.shipFail')}</p>
+					<p>{t('product.shipTogether')}</p>
+					<a href="/shop/info/cara-kerja-po" class="inline-block font-semibold text-brand hover:underline">{t('product.howLink')}</a>
 				</Tabs.Content>
 			</Tabs.Root>
 		</div>
@@ -215,7 +219,7 @@
 
 	{#if data.related.length}
 		<section class="mt-20">
-			<SectionHeading title="Produk lainnya" href="/shop/katalog" linkLabel="Semua produk" />
+			<SectionHeading title={t('product.related')} href="/shop/katalog" linkLabel={t('common.allProducts')} />
 			<ul class="grid grid-cols-2 gap-x-4 gap-y-9 md:gap-x-5 lg:grid-cols-4">
 				{#each data.related as p (p.id)}
 					<li><ProductCard product={p} now={data.now} /></li>
@@ -230,11 +234,13 @@
 	<div class="fixed inset-x-0 bottom-0 z-30 border-t bg-white px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(0,0,0,0.06)] md:hidden">
 		<div class="flex items-center gap-3">
 			<div class="min-w-0 flex-1">
-				<p class="truncate text-xs text-muted-foreground">{size ? `Ukuran ${size} · ${qty} pcs` : needsSize ? 'Pilih ukuran di atas' : `${qty} pcs`}</p>
+				<p class="truncate text-xs text-muted-foreground">
+					{size ? t('product.barSize', { size, qty }) : needsSize ? t('product.barPick') : t('product.barQty', { qty })}
+				</p>
 				<p class="font-display text-2xl leading-none font-bold">{rupiah(product.price * qty)}</p>
 			</div>
 			<Button type="submit" form="add-form" size="lg" class="h-12 px-6 text-base font-semibold" disabled={submitting}>
-				<ShoppingBag class="size-5" /> Pesan (PO)
+				<ShoppingBag class="size-5" /> {t('product.order')}
 			</Button>
 		</div>
 	</div>

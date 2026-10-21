@@ -96,6 +96,8 @@ Toko merchandise Indah Expres khusus mitra dengan sistem **pre-order (PO)**, ber
 - **Aturan PO:** tiap produk punya target dan deadline 23:59 WIB. Hanya pesanan yang dikonfirmasi admin yang
   dihitung. Proses otomatis tiap jam menutup PO: target tercapai → produksi; tidak tercapai → pesanan batal
   dan masuk daftar refund.
+- **Dua bahasa:** tombol ID/EN di header toko (pilihan disimpan di cookie). Teks English untuk produk dan
+  halaman info diisi di admin; bila kosong, otomatis memakai Bahasa Indonesia. Halaman admin tetap Indonesia.
 - **Admin (`/shop/admin`):** dashboard, konfirmasi pembayaran, pesanan (kirim + resi, batal), produk & PO
   (foto, ukuran, buka PO berikutnya, rekap ukuran, ekspor CSV), refund, mitra (impor CSV), dan pengaturan
   (QRIS, nomor WhatsApp admin, batas bayar, ongkir, halaman info, kata sandi).

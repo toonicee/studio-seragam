@@ -3,6 +3,7 @@ import type { Handle, ServerInit } from '@sveltejs/kit/hooks';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { getAuth } from '$lib/server/auth';
 import { bootstrap } from '$lib/server/shop/bootstrap';
+import { LANG_COOKIE } from '$lib/shop/i18n';
 
 export const init: ServerInit = async () => {
 	if (!building) await bootstrap();
@@ -17,6 +18,10 @@ export const handle: Handle = async ({ event, resolve }) => {
 	event.locals.session = null;
 
 	if (building || !(isAdminPath(path) || path.startsWith('/api/auth'))) {
+		// Halaman toko berbahasa Inggris: sesuaikan atribut lang di <html>
+		if (path.startsWith('/shop') && event.cookies.get(LANG_COOKIE) === 'en') {
+			return resolve(event, { transformPageChunk: ({ html }) => html.replace('<html lang="id">', '<html lang="en">') });
+		}
 		return resolve(event);
 	}
 

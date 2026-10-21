@@ -122,6 +122,13 @@
 					<a href="/shop/info/{p.slug}" target="_blank" class="inline-flex items-center gap-1 text-sm text-brand hover:underline">Lihat <ExternalLink class="size-3.5" /></a>
 				</div>
 				<Textarea name="body" value={p.body} rows={10} class="font-mono text-sm" aria-label="Isi halaman {p.title}" />
+				<details class="rounded-md border p-3" open={!!p.bodyEn}>
+					<summary class="cursor-pointer text-sm font-semibold">Versi English <span class="font-normal text-muted-foreground">(opsional)</span></summary>
+					<div class="mt-3 grid gap-2">
+						<Input name="titleEn" value={p.titleEn} placeholder="Judul (EN)" class="max-w-sm" aria-label="Judul English" />
+						<Textarea name="bodyEn" value={p.bodyEn} rows={8} class="font-mono text-sm" aria-label="Isi halaman English" />
+					</div>
+				</details>
 				<p class="text-xs text-muted-foreground">Format markdown: <code>## Judul</code>, <code>**tebal**</code>, daftar dengan <code>- </code> atau <code>1. </code>, link <code>[teks](https://…)</code>.</p>
 				<Button type="submit" size="sm" class="w-fit">Simpan halaman</Button>
 			</form>

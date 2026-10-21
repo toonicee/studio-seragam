@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { t } from '$lib/shop/i18n.svelte';
 	import type { ProductImage } from '$lib/shop/types';
 	import { cn } from '$lib/utils';
 
@@ -23,7 +24,7 @@
 				pagination: images.length > 1 ? { clickable: true } : false,
 				navigation: images.length > 1,
 				keyboard: { enabled: true },
-				a11y: { prevSlideMessage: 'Foto sebelumnya', nextSlideMessage: 'Foto berikutnya' },
+				a11y: { prevSlideMessage: t('gallery.prev'), nextSlideMessage: t('gallery.next') },
 				injectStyles: [
 					`.swiper-pagination-bullet{width:8px;height:8px;background:#17202a;opacity:.25}
 					 .swiper-pagination-bullet-active{opacity:1;background:#e35a12}
@@ -42,7 +43,7 @@
 	});
 </script>
 
-<div class="min-w-0 lg:sticky lg:top-36">
+<div class="min-w-0 lg:sticky lg:top-28">
 	<swiper-container bind:this={el} init="false" class="block overflow-hidden rounded-lg bg-surface">
 		{#each images as img, i (img.src)}
 			<swiper-slide>
@@ -60,7 +61,7 @@
 					/>
 					{#if img.placeholder}
 						<span class="absolute top-3 right-3 rounded-[3px] bg-white/90 px-2.5 py-1 text-xs font-medium text-muted-foreground">
-							Foto menyusul
+							{t('common.photoSoon')}
 						</span>
 					{/if}
 				</div>
@@ -74,7 +75,7 @@
 				<button
 					type="button"
 					onclick={() => el.swiper?.slideTo(i)}
-					aria-label="Lihat foto {i + 1}"
+					aria-label={t('gallery.view', { n: i + 1 })}
 					aria-current={active === i ? 'true' : undefined}
 					class={cn(
 						'w-20 overflow-hidden rounded-md bg-surface ring-offset-2 transition',

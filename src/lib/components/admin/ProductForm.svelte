@@ -75,6 +75,30 @@
 		</div>
 	</section>
 
+	<details class="group rounded-lg border bg-white p-5" open={!!($form.nameEn || $form.descriptionEn)}>
+		<summary class="cursor-pointer font-semibold">
+			Versi English <span class="font-normal text-muted-foreground">(opsional — kosong = pakai Bahasa Indonesia)</span>
+		</summary>
+		<div class="mt-4 grid gap-4 sm:grid-cols-2">
+			<div class="grid gap-1.5">
+				<Label for="nameEn">Nama produk (EN)</Label>
+				<Input id="nameEn" name="nameEn" bind:value={$form.nameEn} />
+			</div>
+			<div class="grid gap-1.5">
+				<Label for="summaryEn">Ringkasan (EN)</Label>
+				<Input id="summaryEn" name="summaryEn" bind:value={$form.summaryEn} />
+			</div>
+			<div class="grid gap-1.5 sm:col-span-2">
+				<Label for="descriptionEn">Deskripsi (EN)</Label>
+				<Textarea id="descriptionEn" name="descriptionEn" rows={4} bind:value={$form.descriptionEn} />
+			</div>
+			<div class="grid gap-1.5 sm:col-span-2">
+				<Label for="detailsEn">Detail produk (EN, satu poin per baris)</Label>
+				<Textarea id="detailsEn" name="detailsEn" rows={4} bind:value={$form.detailsEn} />
+			</div>
+		</div>
+	</details>
+
 	<section class="grid gap-4 rounded-lg border bg-white p-5 sm:grid-cols-2">
 		<div class="grid gap-1.5">
 			<Label for="sizes">Ukuran</Label>

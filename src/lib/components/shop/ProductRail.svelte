@@ -1,6 +1,7 @@
 <script lang="ts">
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
+	import { t } from '$lib/shop/i18n.svelte';
 	import type { ProductCardView } from '$lib/shop/types';
 	import ProductCard from './ProductCard.svelte';
 	import SectionHeading from './SectionHeading.svelte';
@@ -35,7 +36,7 @@
 				type="button"
 				onclick={() => scroll(-1)}
 				class="absolute top-[38%] -left-4 hidden size-11 place-items-center rounded-full border bg-white shadow-md transition hover:text-brand lg:grid"
-				aria-label="Geser ke kiri"
+				aria-label={t('rail.left')}
 			>
 				<ChevronLeft class="size-5" />
 			</button>
@@ -43,7 +44,7 @@
 				type="button"
 				onclick={() => scroll(1)}
 				class="absolute top-[38%] -right-4 hidden size-11 place-items-center rounded-full border bg-white shadow-md transition hover:text-brand lg:grid"
-				aria-label="Geser ke kanan"
+				aria-label={t('rail.right')}
 			>
 				<ChevronRight class="size-5" />
 			</button>

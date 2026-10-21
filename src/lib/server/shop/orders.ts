@@ -1,6 +1,7 @@
 /** Pesanan: checkout, bukti bayar, konfirmasi admin, pembatalan, pengiriman, refund */
 import { randomBytes, randomInt } from 'node:crypto';
 import { and, asc, eq, inArray, isNull, ne } from 'drizzle-orm';
+import { cartProblemText, translate, type Lang, type TKey } from '$lib/shop/i18n';
 import { wibDateString } from '$lib/shop/po';
 import type { OrderView } from '$lib/shop/types';
 import type { Conn } from '../db';
@@ -18,16 +19,36 @@ import { resolveCart, type CartLine } from './cart';
 import { collectedByBatch, toBatchView } from './catalog';
 import { getSettings } from './settings';
 
-/** Kesalahan yang aman ditampilkan ke pembeli/admin */
+type Vars = Record<string, string | number>;
+
+/** Kesalahan yang aman ditampilkan ke pembeli/admin. `key` = teks kamus agar bisa diterjemahkan untuk pembeli */
 export class ShopError extends Error {
 	constructor(
 		message: string,
-		public field?: string
+		public field?: string,
+		public key?: TKey,
+		public vars?: Vars
 	) {
 		super(message);
 		this.name = 'ShopError';
 	}
 }
+
+function textFor(lang: Lang, key: TKey, vars?: Vars) {
+	if (key === 'err.item' && vars)
+		return translate(lang, key, {
+			name: vars.name,
+			problem: cartProblemText(lang, String(vars.problem), Number(vars.closesAt) || null)
+		});
+	return translate(lang, key, vars);
+}
+
+/** Kesalahan dari kamus; pesan bawaannya Bahasa Indonesia */
+export const shopError = (key: TKey, vars?: Vars, field?: string) =>
+	new ShopError(textFor('id', key, vars), field, key, vars);
+
+/** Pesan kesalahan untuk pembeli dalam bahasanya */
+export const localizeError = (e: ShopError, lang: Lang) => (e.key ? textFor(lang, e.key, e.vars) : e.message);
 
 const HOUR = 3600_000;
 /** Pesanan yang nominalnya masih harus dicocokkan admin */
@@ -50,7 +71,7 @@ export function pickUniqueCode(
 		if (c >= 1 && c <= 999 && !takenTotals.has(base + c)) return c;
 	}
 	for (let c = 1; c <= 999; c++) if (!takenTotals.has(base + c)) return c;
-	throw new ShopError('Terlalu banyak pesanan menunggu pembayaran. Coba lagi beberapa saat lagi.');
+	throw shopError('err.busy');
 }
 
 /** "IE-261021-0007" — tanggal WIB + nomor urut */
@@ -76,23 +97,20 @@ export function createOrder(
 	input: NewOrder,
 	lines: CartLine[],
 	now: Date,
-	opts: { rand?: () => number } = {}
+	opts: { rand?: () => number; lang?: Lang } = {}
 ): { id: number; code: string; token: string } {
 	return db.transaction((tx) => {
 		const partner = findPartner(tx, input.partnerCode, input.phone);
-		if (!partner)
-			throw new ShopError(
-				'Kode mitra dan nomor WhatsApp tidak cocok dengan data mitra aktif. Hubungi admin bila belum terdaftar.',
-				'partnerCode'
-			);
+		if (!partner) throw shopError('err.partner', undefined, 'partnerCode');
 
 		const zone = tx.select().from(shippingZones).where(eq(shippingZones.id, input.zoneId)).get();
-		if (!zone || !zone.active) throw new ShopError('Pilih tarif ongkir yang tersedia.', 'zoneId');
+		if (!zone || !zone.active) throw shopError('err.zone', undefined, 'zoneId');
 
-		const cart = resolveCart(tx, lines, now.getTime());
-		if (!cart.lines.length) throw new ShopError('Keranjang masih kosong.');
+		const cart = resolveCart(tx, lines, now.getTime(), opts.lang);
+		if (!cart.lines.length) throw shopError('err.cartEmpty');
 		const bad = cart.lines.find((l) => !l.orderable);
-		if (bad) throw new ShopError(`${bad.name}: ${bad.problem}. Perbarui keranjang dulu.`);
+		if (bad)
+			throw shopError('err.item', { name: bad.name, problem: bad.problem ?? '', closesAt: bad.batch?.closesAt ?? 0 });
 
 		const base = cart.subtotal + zone.fee;
 		const taken = new Set(
@@ -157,9 +175,9 @@ export function createOrder(
 	});
 }
 
-function loadView(db: Conn, order: Order): OrderView {
+function loadView(db: Conn, order: Order, lang: Lang = 'id'): OrderView {
 	const items = db
-		.select({ item: orderItems, slug: products.slug, images: products.images })
+		.select({ item: orderItems, slug: products.slug, images: products.images, nameEn: products.nameEn })
 		.from(orderItems)
 		.leftJoin(products, eq(products.id, orderItems.productId))
 		.where(eq(orderItems.orderId, order.id))
@@ -206,11 +224,11 @@ function loadView(db: Conn, order: Order): OrderView {
 		cancelledAt: order.cancelledAt?.getTime() ?? null,
 		cancelReason: order.cancelReason,
 		createdAt: order.createdAt.getTime(),
-		items: items.map(({ item, slug, images }) => ({
+		items: items.map(({ item, slug, images, nameEn }) => ({
 			id: item.id,
 			productId: item.productId,
 			productSlug: slug,
-			productName: item.productName,
+			productName: lang === 'en' && nameEn ? nameEn : item.productName,
 			image: images?.[0] ?? null,
 			unitPrice: item.unitPrice,
 			size: item.size,
@@ -231,9 +249,9 @@ function loadView(db: Conn, order: Order): OrderView {
 	};
 }
 
-export function getOrderByToken(db: Conn, token: string): OrderView | null {
+export function getOrderByToken(db: Conn, token: string, lang: Lang = 'id'): OrderView | null {
 	const o = db.select().from(orders).where(eq(orders.token, token)).get();
-	return o ? loadView(db, o) : null;
+	return o ? loadView(db, o, lang) : null;
 }
 
 export function getOrderById(db: Conn, id: number): OrderView | null {
@@ -260,10 +278,8 @@ function getOrderRow(db: Conn, id: number) {
 /** Pembeli mengunggah bukti bayar → menunggu konfirmasi admin */
 export function attachProof(db: Conn, orderId: number, proofPath: string, now: Date) {
 	const o = getOrderRow(db, orderId);
-	if (o.status !== 'pending_payment' && o.status !== 'pending_confirmation')
-		throw new ShopError('Bukti bayar tidak bisa diunggah untuk pesanan ini.');
-	if (now.getTime() > o.payBy.getTime())
-		throw new ShopError('Batas waktu pembayaran sudah lewat. Hubungi admin lewat WhatsApp.');
+	if (o.status !== 'pending_payment' && o.status !== 'pending_confirmation') throw shopError('err.proofNotAllowed');
+	if (now.getTime() > o.payBy.getTime()) throw shopError('err.payExpired');
 	db.update(orders)
 		.set({
 			proofPath,

@@ -7,6 +7,8 @@
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import ShoppingBag from '@lucide/svelte/icons/shopping-bag';
 	import { fmtDayShort, rupiah } from '$lib/shop/format';
+	import { cartProblemText } from '$lib/shop/i18n';
+	import { lang, t, tn } from '$lib/shop/i18n.svelte';
 	import type { CartView } from '$lib/shop/types';
 	import { cartAction } from './cart-actions';
 
@@ -16,9 +18,9 @@
 <Sheet.Root bind:open>
 	<Sheet.Content side="right" class="flex w-full flex-col gap-0 p-0 sm:max-w-md">
 		<Sheet.Header class="border-b px-5 py-4">
-			<Sheet.Title class="font-display text-2xl font-bold tracking-wide uppercase">Keranjang</Sheet.Title>
+			<Sheet.Title class="font-display text-2xl font-bold tracking-wide uppercase">{t('cart.title')}</Sheet.Title>
 			<Sheet.Description>
-				{cart.count ? `${cart.count} barang · semua produk dijual pre-order` : 'Belum ada barang'}
+				{cart.count ? tn('cart.countNote', cart.count) : t('cart.none')}
 			</Sheet.Description>
 		</Sheet.Header>
 
@@ -45,27 +47,27 @@
 								</a>
 								<form method="POST" action="/shop/keranjang?/remove" use:enhance={cartAction}>
 									<input type="hidden" name="key" value={line.key} />
-									<button class="-mt-1 -mr-1 grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-destructive" aria-label="Hapus {line.name}">
+									<button class="-mt-1 -mr-1 grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-destructive" aria-label={t('cart.remove', { name: line.name })}>
 										<Trash2 class="size-4" />
 									</button>
 								</form>
 							</div>
 							<p class="text-sm text-muted-foreground">
-								{line.size ? `Ukuran ${line.size}` : 'Satu ukuran'} · {rupiah(line.price)}
+								{line.size ? t('common.sizeN', { size: line.size }) : t('common.oneSize')} · {rupiah(line.price)}
 							</p>
 							{#if line.problem}
-								<p class="mt-1 text-xs font-medium text-destructive">{line.problem}</p>
+								<p class="mt-1 text-xs font-medium text-destructive">{cartProblemText(lang(), line.problem, line.batch?.closesAt)}</p>
 							{:else if line.batch}
-								<p class="mt-1 text-xs text-muted-foreground">PO ditutup {fmtDayShort(line.batch.closesAt)}, 23:59 WIB</p>
+								<p class="mt-1 text-xs text-muted-foreground">{t('cart.closes', { date: fmtDayShort(line.batch.closesAt, lang()) })}</p>
 							{/if}
 							<div class="mt-2 flex items-center justify-between">
 								<form method="POST" action="/shop/keranjang?/update" use:enhance={cartAction} class="flex items-center rounded-md border">
 									<input type="hidden" name="key" value={line.key} />
-									<button name="qty" value={line.qty - 1} class="grid size-8 place-items-center hover:bg-muted" aria-label="Kurangi">
+									<button name="qty" value={line.qty - 1} class="grid size-8 place-items-center hover:bg-muted" aria-label={t('common.decrease')}>
 										<Minus class="size-3.5" />
 									</button>
 									<span class="w-8 text-center text-sm font-semibold tabular-nums">{line.qty}</span>
-									<button name="qty" value={line.qty + 1} class="grid size-8 place-items-center hover:bg-muted" aria-label="Tambah">
+									<button name="qty" value={line.qty + 1} class="grid size-8 place-items-center hover:bg-muted" aria-label={t('common.increase')}>
 										<Plus class="size-3.5" />
 									</button>
 								</form>
@@ -77,26 +79,26 @@
 			</ul>
 			<div class="border-t bg-muted/40 px-5 py-4">
 				<div class="flex items-baseline justify-between">
-					<span class="text-sm text-muted-foreground">Subtotal</span>
+					<span class="text-sm text-muted-foreground">{t('common.subtotal')}</span>
 					<span class="font-display text-2xl font-bold">{rupiah(cart.subtotal)}</span>
 				</div>
-				<p class="mt-1 text-xs text-muted-foreground">Ongkir dan kode unik ditambahkan saat checkout.</p>
+				<p class="mt-1 text-xs text-muted-foreground">{t('cart.shippingNote')}</p>
 				{#if !cart.ready}
-					<p class="mt-2 text-xs font-medium text-destructive">Hapus barang yang PO-nya sudah ditutup untuk lanjut.</p>
+					<p class="mt-2 text-xs font-medium text-destructive">{t('cart.blocked')}</p>
 				{/if}
 				<div class="mt-4 grid gap-2">
 					<Button href={cart.ready ? '/shop/checkout' : undefined} disabled={!cart.ready} size="lg" class="h-12 text-base font-semibold" onclick={() => (open = false)}>
-						Checkout
+						{t('cart.checkout')}
 					</Button>
-					<Button href="/shop/keranjang" variant="outline" size="lg" class="h-11" onclick={() => (open = false)}>Lihat keranjang</Button>
+					<Button href="/shop/keranjang" variant="outline" size="lg" class="h-11" onclick={() => (open = false)}>{t('cart.view')}</Button>
 				</div>
 			</div>
 		{:else}
 			<div class="grid flex-1 place-content-center justify-items-center gap-3 px-8 text-center">
 				<ShoppingBag class="size-12 text-muted-foreground/60" />
-				<p class="font-medium">Keranjang masih kosong</p>
-				<p class="text-sm text-muted-foreground">Pilih merchandise yang sedang dibuka PO-nya.</p>
-				<Button href="/shop/katalog" class="mt-2" onclick={() => (open = false)}>Lihat katalog</Button>
+				<p class="font-medium">{t('cart.emptyTitle')}</p>
+				<p class="text-sm text-muted-foreground">{t('cart.emptyText')}</p>
+				<Button href="/shop/katalog" class="mt-2" onclick={() => (open = false)}>{t('cart.browse')}</Button>
 			</div>
 		{/if}
 	</Sheet.Content>

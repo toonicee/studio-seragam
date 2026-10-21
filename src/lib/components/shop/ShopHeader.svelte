@@ -3,11 +3,12 @@
 	import * as Sheet from '$lib/components/ui/sheet';
 	import Menu from '@lucide/svelte/icons/menu';
 	import Search from '@lucide/svelte/icons/search';
-	import ShoppingBag from '@lucide/svelte/icons/shopping-bag';
+	import ShoppingCart from '@lucide/svelte/icons/shopping-cart';
 	import PackageSearch from '@lucide/svelte/icons/package-search';
-	import ShieldCheck from '@lucide/svelte/icons/shield-check';
 	import X from '@lucide/svelte/icons/x';
 	import ChevronRight from '@lucide/svelte/icons/chevron-right';
+	import { LANGS, type Lang } from '$lib/shop/i18n';
+	import { lang, setLang, t } from '$lib/shop/i18n.svelte';
 	import type { CategoryView } from '$lib/shop/types';
 	import { cn } from '$lib/utils';
 	import ShopLogo from './ShopLogo.svelte';
@@ -22,157 +23,160 @@
 	let searchOpen = $state(false);
 
 	const nav = $derived([
-		{ href: '/shop/katalog', label: 'Semua Produk' },
-		...categories.map((c) => ({ href: `/shop/katalog/${c.slug}`, label: c.name })),
-		{ href: '/shop/info/cara-kerja-po', label: 'Cara Kerja PO' }
+		{ href: '/shop/katalog', label: t('common.allProducts') },
+		...categories.map((c) => ({ href: `/shop/katalog/${c.slug}`, label: c.name }))
 	]);
 
 	const isActive = (href: string) =>
 		href === '/shop/katalog' ? page.url.pathname === href : page.url.pathname.startsWith(href);
 	const q = $derived(page.url.pathname === '/shop/cari' ? (page.url.searchParams.get('q') ?? '') : '');
+
+	/** Tautan cadangan tanpa JavaScript; dengan JavaScript bahasa diganti tanpa memuat ulang halaman */
+	const langHref = (l: Lang) =>
+		`/shop/bahasa?lang=${l}&to=${encodeURIComponent(page.url.pathname + page.url.search)}`;
+	function switchLang(e: MouseEvent, l: Lang) {
+		e.preventDefault();
+		if (l !== lang()) setLang(l);
+	}
+
+	const iconBtn =
+		'relative grid size-11 place-items-center rounded-full text-white transition-colors hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:outline-none';
 </script>
 
-<!-- Bar info PO -->
-<div class="bg-brand text-white">
-	<div class="mx-auto flex h-9 max-w-7xl items-center justify-center gap-6 px-4 text-xs font-medium md:justify-between">
-		<p class="flex items-center gap-1.5 truncate">
-			<ShieldCheck class="size-3.5 shrink-0" />
-			<span class="truncate md:hidden">Pre-order · Dana kembali 100% jika target gagal</span>
-			<span class="hidden truncate md:inline">Sistem pre-order · Dana kembali 100% jika target tidak tercapai</span>
-		</p>
-		<div class="hidden items-center gap-5 md:flex">
-			<span>Khusus mitra Indah Expres</span>
-			<a href="/shop/cek-pesanan" class="underline-offset-4 hover:underline">Cek pesanan</a>
-			<a href="/shop/info/faq" class="underline-offset-4 hover:underline">Bantuan</a>
-		</div>
-	</div>
-</div>
-
-<header class="sticky top-0 z-40 border-b bg-white">
-	<div class="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 md:h-[76px] md:gap-6">
-		<button
-			type="button"
-			class="-ml-2 grid size-10 place-items-center rounded-md hover:bg-muted lg:hidden"
-			aria-label="Buka menu"
-			onclick={() => (menuOpen = true)}
+{#snippet langSwitch(where: 'lang' | 'sheet')}
+	{#each LANGS as l (l)}
+		<a
+			href={langHref(l)}
+			hreflang={l}
+			lang={l}
+			aria-current={lang() === l ? 'true' : undefined}
+			onclick={(e) => switchLang(e, l)}
+			data-sveltekit-reload
+			data-testid={where === 'lang' ? `lang-${l}` : `sheet-lang-${l}`}
+			class={cn(
+				'grid h-9 min-w-10 place-items-center rounded-full px-2.5 uppercase transition-colors',
+				where === 'lang'
+					? lang() === l
+						? 'bg-black/20 text-white'
+						: 'text-white/80 hover:text-white'
+					: lang() === l
+						? 'bg-white text-ink shadow-sm'
+						: 'text-muted-foreground hover:text-foreground'
+			)}
 		>
-			<Menu class="size-6" />
-		</button>
-
-		<a href="/shop" class="shrink-0" aria-label="Toko Indah Expres — beranda">
-			<ShopLogo />
+			{l}
 		</a>
+	{/each}
+{/snippet}
 
-		<form action="/shop/cari" method="GET" role="search" class="relative ml-auto hidden max-w-md flex-1 md:block">
-			<Search class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-			<input
-				type="search"
-				name="q"
-				value={q}
-				placeholder="Cari kaos, kemeja, topi…"
-				aria-label="Cari produk"
-				class="h-11 w-full rounded-md border border-input bg-muted/40 pr-3 pl-9 text-sm outline-none placeholder:text-muted-foreground focus:border-brand focus:bg-white focus:ring-3 focus:ring-brand/15"
-			/>
-		</form>
-
-		<div class="ml-auto flex items-center gap-1 md:ml-0">
-			<button
-				type="button"
-				class="grid size-10 place-items-center rounded-md hover:bg-muted md:hidden"
-				aria-label="Cari produk"
-				aria-expanded={searchOpen}
-				onclick={() => (searchOpen = !searchOpen)}
-			>
-				{#if searchOpen}<X class="size-5" />{:else}<Search class="size-5" />{/if}
+<!-- Header melayang gaya fanshop: satu bar warna brand, sudut membulat -->
+<header class="sticky top-0 z-40 pt-3 md:pt-4">
+	<!-- Lebar bar sejajar dengan isi halaman (max-w-7xl px-4) -->
+	<div class="mx-auto max-w-7xl px-4">
+		<div
+			class="flex h-16 items-center gap-1 rounded-2xl bg-brand pr-1.5 pl-1.5 shadow-[0_10px_30px_-14px_rgba(23,32,42,0.55)] sm:gap-2 sm:pr-2 sm:pl-2 md:h-19 md:gap-4 md:pr-4 md:pl-4"
+		>
+			<button type="button" class={cn(iconBtn, 'xl:hidden')} aria-label={t('nav.openMenu')} onclick={() => (menuOpen = true)}>
+				<Menu class="size-6" />
 			</button>
+
 			<a
-				href="/shop/cek-pesanan"
-				class="hidden h-10 items-center gap-2 rounded-md px-3 text-sm font-medium hover:bg-muted lg:flex"
+				href="/shop"
+				class="min-w-0 shrink rounded-lg bg-white px-2 py-1.5 shadow-sm ring-1 ring-black/5 sm:px-2.5 md:px-3"
+				aria-label={t('nav.home')}
 			>
-				<PackageSearch class="size-5" />
-				Cek pesanan
+				<ShopLogo />
 			</a>
-			<button
-				type="button"
-				class="relative flex h-10 items-center gap-2 rounded-md px-2.5 text-sm font-semibold hover:bg-muted"
-				aria-label="Keranjang, {cartCount} barang"
-				onclick={onOpenCart}
-				data-testid="open-cart"
-			>
-				<span class="relative">
-					<ShoppingBag class="size-6" />
+
+			<nav aria-label={t('nav.categories')} class="hidden flex-1 justify-center xl:flex">
+				<ul class="flex items-center gap-1">
+					{#each nav as item (item.href)}
+						<li>
+							<a
+								href={item.href}
+								aria-current={isActive(item.href) ? 'page' : undefined}
+								class={cn(
+									'block rounded-full px-3.5 py-2 font-ui text-[17px] font-bold whitespace-nowrap text-white transition-colors hover:bg-white/15',
+									isActive(item.href) && 'bg-black/20'
+								)}
+							>
+								{item.label}
+							</a>
+						</li>
+					{/each}
+				</ul>
+			</nav>
+
+			<div class="ml-auto flex items-center gap-1 xl:ml-0">
+				<div class="mr-1 hidden items-center gap-0.5 font-ui text-sm font-bold sm:flex" role="group" aria-label={t('nav.language')}>
+					{@render langSwitch('lang')}
+				</div>
+				<button type="button" class={iconBtn} aria-label={t('nav.cart', { n: cartCount })} onclick={onOpenCart} data-testid="open-cart">
+					<ShoppingCart class="size-6" />
 					{#if cartCount > 0}
 						<span
-							class="absolute -top-2 -right-2.5 grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1 text-[11px] font-bold text-white ring-2 ring-white"
+							class="absolute top-0.5 right-0 grid h-5 min-w-5 place-items-center rounded-full bg-ink px-1 text-[11px] font-bold text-white ring-2 ring-brand"
 							data-testid="cart-count">{cartCount}</span
 						>
 					{/if}
-				</span>
-				<span class="hidden lg:inline">Keranjang</span>
-			</button>
-		</div>
-	</div>
-
-	{#if searchOpen}
-		<form action="/shop/cari" method="GET" role="search" class="border-t px-4 py-3 md:hidden">
-			<!-- svelte-ignore a11y_autofocus -->
-			<input
-				type="search"
-				name="q"
-				value={q}
-				autofocus
-				placeholder="Cari kaos, kemeja, topi…"
-				aria-label="Cari produk"
-				class="h-11 w-full rounded-md border border-input px-3 text-base outline-none focus:border-brand focus:ring-3 focus:ring-brand/15"
-			/>
-		</form>
-	{/if}
-
-	<!-- Menu kategori (desktop), gaya fanshop: datar, huruf besar -->
-	<nav aria-label="Kategori" class="hidden border-t lg:block">
-		<ul class="mx-auto flex max-w-7xl items-center gap-1 px-4">
-			{#each nav as item (item.href)}
-				<li>
-					<a
-						href={item.href}
-						aria-current={isActive(item.href) ? 'page' : undefined}
-						class={cn(
-							'relative block px-3 py-3 font-display text-[17px] font-semibold tracking-wide uppercase transition-colors hover:text-brand',
-							isActive(item.href) &&
-								'text-brand after:absolute after:inset-x-3 after:bottom-0 after:h-[3px] after:rounded-t after:bg-brand'
-						)}
-					>
-						{item.label}
-					</a>
-				</li>
-			{/each}
-			<li class="ml-auto">
-				<a
-					href="/"
-					data-sveltekit-reload
-					class="block px-3 py-3 text-sm font-medium text-muted-foreground hover:text-brand"
+				</button>
+				<button
+					type="button"
+					class={iconBtn}
+					aria-label={t('nav.search')}
+					aria-expanded={searchOpen}
+					onclick={() => (searchOpen = !searchOpen)}
 				>
-					Desain seragam kustom →
-				</a>
-			</li>
-		</ul>
-	</nav>
+					{#if searchOpen}<X class="size-6" />{:else}<Search class="size-6" />{/if}
+				</button>
+			</div>
+		</div>
+
+		{#if searchOpen}
+			<form
+				action="/shop/cari"
+				method="GET"
+				role="search"
+				class="mt-2 flex items-center gap-2 rounded-2xl bg-white p-2 shadow-lg ring-1 ring-black/5"
+				onsubmit={() => (searchOpen = false)}
+			>
+				<Search class="ml-2 size-5 shrink-0 text-muted-foreground" />
+				<!-- svelte-ignore a11y_autofocus -->
+				<input
+					type="search"
+					name="q"
+					value={q}
+					autofocus
+					placeholder={t('nav.searchPlaceholder')}
+					aria-label={t('nav.search')}
+					class="h-11 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
+				/>
+				<button class="h-11 shrink-0 rounded-xl bg-ink px-5 text-sm font-semibold text-white hover:bg-ink-soft">{t('nav.searchButton')}</button>
+			</form>
+		{/if}
+	</div>
 </header>
 
-<!-- Menu HP -->
+<!-- Menu HP & tablet -->
 <Sheet.Root bind:open={menuOpen}>
 	<Sheet.Content side="left" class="w-[86vw] max-w-sm gap-0 p-0">
 		<Sheet.Header class="border-b px-5 py-4">
-			<Sheet.Title class="sr-only">Menu toko</Sheet.Title>
+			<Sheet.Title class="sr-only">{t('nav.menu')}</Sheet.Title>
 			<a href="/shop" onclick={() => (menuOpen = false)}><ShopLogo /></a>
+			<div class="mt-3 flex items-center gap-2 text-sm">
+				<span class="text-muted-foreground">{t('nav.language')}</span>
+				<div class="flex rounded-full bg-muted p-1 font-ui font-bold" role="group" aria-label={t('nav.language')}>
+					{@render langSwitch('sheet')}
+				</div>
+			</div>
 		</Sheet.Header>
-		<nav aria-label="Menu" class="flex-1 overflow-y-auto py-2">
+		<nav aria-label={t('nav.menu')} class="flex-1 overflow-y-auto py-2">
 			{#each nav as item (item.href)}
 				<a
 					href={item.href}
 					onclick={() => (menuOpen = false)}
 					class={cn(
-						'flex items-center justify-between px-5 py-3.5 font-display text-xl font-semibold tracking-wide uppercase',
+						'flex items-center justify-between px-5 py-3.5 font-ui text-lg font-bold',
 						isActive(item.href) ? 'text-brand' : 'hover:bg-muted'
 					)}
 				>
@@ -182,13 +186,13 @@
 			{/each}
 			<div class="mt-2 border-t px-5 pt-4 text-sm">
 				<a href="/shop/cek-pesanan" onclick={() => (menuOpen = false)} class="flex items-center gap-2 py-2 font-medium">
-					<PackageSearch class="size-4" /> Cek pesanan
+					<PackageSearch class="size-4" />
+					{t('nav.checkOrder')}
 				</a>
-				<a href="/shop/info/faq" onclick={() => (menuOpen = false)} class="block py-2 font-medium">FAQ</a>
-				<a href="/shop/info/kebijakan-refund" onclick={() => (menuOpen = false)} class="block py-2 font-medium">
-					Kebijakan refund
-				</a>
-				<a href="/" data-sveltekit-reload class="block py-2 text-muted-foreground">Desain seragam kustom →</a>
+				<a href="/shop/info/cara-kerja-po" onclick={() => (menuOpen = false)} class="block py-2 font-medium">{t('nav.howItWorks')}</a>
+				<a href="/shop/info/faq" onclick={() => (menuOpen = false)} class="block py-2 font-medium">{t('nav.faq')}</a>
+				<a href="/shop/info/kebijakan-refund" onclick={() => (menuOpen = false)} class="block py-2 font-medium">{t('nav.refundPolicy')}</a>
+				<a href="/" data-sveltekit-reload class="block py-2 text-muted-foreground">{t('nav.customUniform')}</a>
 			</div>
 		</nav>
 	</Sheet.Content>

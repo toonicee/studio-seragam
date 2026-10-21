@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import type { Lang } from '$lib/shop/i18n';
 import { poPhase } from '$lib/shop/po';
 import type { BatchView, CategoryView, ProductCardView, ProductDetailView } from '$lib/shop/types';
 import type { Conn as DB } from '../db';
@@ -57,32 +58,41 @@ export function latestBatches(db: DB, productIds?: number[]): Map<number, PoBatc
 	return map;
 }
 
+/** Teks English bila ada, selain itu Bahasa Indonesia */
+export const pick = (lang: Lang, idText: string, enText: string | null | undefined) =>
+	lang === 'en' && enText ? enText : idText;
+
+type CatRow = { slug: string; name: string; nameEn: string };
+
 function toCard(
 	p: Product,
-	cat: { slug: string; name: string },
+	cat: CatRow,
 	batch: PoBatch | undefined,
-	collected: Map<number, number>
+	collected: Map<number, number>,
+	lang: Lang
 ): ProductCardView {
 	return {
 		id: p.id,
 		slug: p.slug,
-		name: p.name,
-		summary: p.summary,
+		name: pick(lang, p.name, p.nameEn),
+		summary: pick(lang, p.summary, p.summaryEn),
 		price: p.price,
 		sizes: p.sizes,
 		images: p.images,
-		category: cat,
+		category: { slug: cat.slug, name: pick(lang, cat.name, cat.nameEn) },
 		batch: batch ? toBatchView(batch, collected) : null,
 		createdAt: p.createdAt.getTime()
 	};
 }
 
+const catCols = { slug: categories.slug, name: categories.name, nameEn: categories.nameEn };
+
 export function listProducts(
 	db: DB,
-	opts: { categorySlug?: string; includeInactive?: boolean } = {}
+	opts: { categorySlug?: string; includeInactive?: boolean; lang?: Lang } = {}
 ): ProductCardView[] {
 	const rows = db
-		.select({ p: products, cat: { slug: categories.slug, name: categories.name } })
+		.select({ p: products, cat: catCols })
 		.from(products)
 		.innerJoin(categories, eq(categories.id, products.categoryId))
 		.where(
@@ -101,12 +111,18 @@ export function listProducts(
 		db,
 		[...batches.values()].map((b) => b.id)
 	);
-	return rows.map((r) => toCard(r.p, r.cat, batches.get(r.p.id), collected));
+	return rows.map((r) => toCard(r.p, r.cat, batches.get(r.p.id), collected, opts.lang ?? 'id'));
 }
 
-export function getProductBySlug(db: DB, slug: string, includeInactive = false): ProductDetailView | null {
+export function getProductBySlug(
+	db: DB,
+	slug: string,
+	opts: { includeInactive?: boolean; lang?: Lang } = {}
+): ProductDetailView | null {
+	const lang = opts.lang ?? 'id';
+	const includeInactive = !!opts.includeInactive;
 	const row = db
-		.select({ p: products, cat: { slug: categories.slug, name: categories.name } })
+		.select({ p: products, cat: catCols })
 		.from(products)
 		.innerJoin(categories, eq(categories.id, products.categoryId))
 		.where(and(eq(products.slug, slug), includeInactive ? undefined : eq(products.active, true)))
@@ -115,15 +131,15 @@ export function getProductBySlug(db: DB, slug: string, includeInactive = false):
 	const batch = latestBatches(db, [row.p.id]).get(row.p.id);
 	const collected = collectedByBatch(db, batch ? [batch.id] : []);
 	return {
-		...toCard(row.p, row.cat, batch, collected),
-		description: row.p.description,
-		details: row.p.details,
+		...toCard(row.p, row.cat, batch, collected, lang),
+		description: pick(lang, row.p.description, row.p.descriptionEn),
+		details: pick(lang, row.p.details, row.p.detailsEn),
 		sizeChart: row.p.sizeChart,
 		productionDays: row.p.productionDays
 	};
 }
 
-export function listCategories(db: DB): CategoryView[] {
+export function listCategories(db: DB, lang: Lang = 'id'): CategoryView[] {
 	const cats = db.select().from(categories).orderBy(asc(categories.sort), asc(categories.id)).all();
 	const prods = db
 		.select({ categoryId: products.categoryId, images: products.images })
@@ -137,8 +153,8 @@ export function listCategories(db: DB): CategoryView[] {
 		return {
 			id: c.id,
 			slug: c.slug,
-			name: c.name,
-			description: c.description,
+			name: pick(lang, c.name, c.nameEn),
+			description: pick(lang, c.description, c.descriptionEn),
 			count: own.length,
 			image: withPhoto?.images[0] ?? null
 		};

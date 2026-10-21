@@ -26,6 +26,9 @@ export const categories = sqliteTable('categories', {
 	slug: text('slug').notNull().unique(),
 	name: text('name').notNull(),
 	description: text('description').notNull().default(''),
+	/** Versi English (kosong = pakai Bahasa Indonesia) */
+	nameEn: text('name_en').notNull().default(''),
+	descriptionEn: text('description_en').notNull().default(''),
 	sort: integer('sort').notNull().default(0)
 });
 
@@ -41,6 +44,11 @@ export const products = sqliteTable('products', {
 	description: text('description').notNull().default(''),
 	/** Detail produk, satu poin per baris */
 	details: text('details').notNull().default(''),
+	/** Versi English (kosong = pakai Bahasa Indonesia) */
+	nameEn: text('name_en').notNull().default(''),
+	summaryEn: text('summary_en').notNull().default(''),
+	descriptionEn: text('description_en').notNull().default(''),
+	detailsEn: text('details_en').notNull().default(''),
 	price: integer('price').notNull(),
 	sizes: text('sizes', { mode: 'json' })
 		.$type<string[]>()
@@ -199,6 +207,8 @@ export const pages = sqliteTable('pages', {
 	slug: text('slug').primaryKey(),
 	title: text('title').notNull(),
 	body: text('body').notNull().default(''),
+	titleEn: text('title_en').notNull().default(''),
+	bodyEn: text('body_en').notNull().default(''),
 	updatedAt: updatedAt()
 });
 

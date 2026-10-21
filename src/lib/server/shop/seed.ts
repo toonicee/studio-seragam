@@ -1,5 +1,5 @@
 /** Data contoh toko. Katalog contoh hanya memakai aset yang sudah ada di repo (foto katalog, render 3D, logo). */
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import sharp from 'sharp';
 import { PRODUCTS } from '$lib/constants/catalog';
 import { addDays, wibDateString, wibDeadline } from '$lib/shop/po';
@@ -19,6 +19,7 @@ import { orderCode } from './orders';
 import { runScheduledTasks } from './scheduler';
 import { saveBuffer } from './uploads';
 import { INFO_PAGE_CONTENT } from './content';
+import { CATEGORY_EN, PAGE_EN, PRODUCT_EN } from './content-en';
 
 const DAY = 86_400_000;
 
@@ -227,7 +228,11 @@ export function seedSample(db: Conn, now: Date) {
 	const hasProducts = db.select({ n: sql<number>`count(*)` }).from(products).get()!.n > 0;
 	db.transaction((tx) => {
 		for (const p of INFO_PAGE_CONTENT) {
-			tx.insert(pages).values(p).onConflictDoNothing().run();
+			const en = PAGE_EN[p.slug];
+			tx.insert(pages)
+				.values({ ...p, titleEn: en?.title ?? '', bodyEn: en?.body ?? '' })
+				.onConflictDoNothing()
+				.run();
 		}
 		const zones = tx.select({ n: sql<number>`count(*)` }).from(shippingZones).get()!.n;
 		if (!zones) tx.insert(shippingZones).values({ name: 'Tarif flat seluruh Indonesia', fee: 20000, sort: 0 }).run();
@@ -235,7 +240,12 @@ export function seedSample(db: Conn, now: Date) {
 
 		const catIds = new Map<string, number>();
 		SAMPLE_CATEGORIES.forEach((c, i) => {
-			const { id } = tx.insert(categories).values({ ...c, sort: i }).returning({ id: categories.id }).get();
+			const en = CATEGORY_EN[c.slug];
+			const { id } = tx
+				.insert(categories)
+				.values({ ...c, nameEn: en?.name ?? '', descriptionEn: en?.description ?? '', sort: i })
+				.returning({ id: categories.id })
+				.get();
 			catIds.set(c.slug, id);
 		});
 
@@ -251,6 +261,10 @@ export function seedSample(db: Conn, now: Date) {
 					summary: p.summary,
 					description: p.description,
 					details: p.details.join('\n'),
+					nameEn: PRODUCT_EN[p.slug]?.name ?? '',
+					summaryEn: PRODUCT_EN[p.slug]?.summary ?? '',
+					descriptionEn: PRODUCT_EN[p.slug]?.description ?? '',
+					detailsEn: PRODUCT_EN[p.slug]?.details.join('\n') ?? '',
 					price: p.price,
 					sizes: p.sizes.map((s) => s.size),
 					sizeChart: p.sizes.some((s) => s.length !== null) ? p.sizes : [],
@@ -276,6 +290,30 @@ export function seedSample(db: Conn, now: Date) {
 				})
 				.run();
 		});
+	});
+}
+
+/** Isi teks English yang masih kosong untuk kategori, produk contoh, dan halaman info (database lama) */
+export function backfillEnglish(db: Conn) {
+	db.transaction((tx) => {
+		for (const [slug, en] of Object.entries(CATEGORY_EN)) {
+			tx.update(categories)
+				.set({ nameEn: en.name, descriptionEn: en.description })
+				.where(and(eq(categories.slug, slug), eq(categories.nameEn, '')))
+				.run();
+		}
+		for (const [slug, en] of Object.entries(PRODUCT_EN)) {
+			tx.update(products)
+				.set({ nameEn: en.name, summaryEn: en.summary, descriptionEn: en.description, detailsEn: en.details.join('\n') })
+				.where(and(eq(products.slug, slug), eq(products.nameEn, '')))
+				.run();
+		}
+		for (const [slug, en] of Object.entries(PAGE_EN)) {
+			tx.update(pages)
+				.set({ titleEn: en.title, bodyEn: en.body })
+				.where(and(eq(pages.slug, slug), eq(pages.bodyEn, '')))
+				.run();
+		}
 	});
 }
 

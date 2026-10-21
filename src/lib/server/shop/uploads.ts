@@ -4,7 +4,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
 import sharp from 'sharp';
 import { dataDir } from '../db';
-import { ShopError } from './orders';
+import { shopError } from './orders';
 
 const MAX_BYTES = 8 * 1024 * 1024;
 
@@ -26,7 +26,7 @@ export async function processImage(input: Buffer, maxSize: number) {
 			.webp({ quality: 82 })
 			.toBuffer();
 	} catch {
-		throw new ShopError('File bukan gambar yang valid. Gunakan JPG, PNG, atau WebP.');
+		throw shopError('err.fileInvalid');
 	}
 }
 
@@ -45,8 +45,8 @@ export async function saveImage(
 	kind: UploadKind,
 	opts: { maxSize?: number; prefix?: string } = {}
 ): Promise<string> {
-	if (!(file instanceof File) || file.size === 0) throw new ShopError('Pilih file gambar terlebih dahulu.');
-	if (file.size > MAX_BYTES) throw new ShopError('Ukuran file maksimal 8 MB.');
+	if (!(file instanceof File) || file.size === 0) throw shopError('err.fileMissing');
+	if (file.size > MAX_BYTES) throw shopError('err.fileTooBig');
 	const out = await processImage(Buffer.from(await file.arrayBuffer()), opts.maxSize ?? 1600);
 	return saveBuffer(out, kind, opts.prefix);
 }

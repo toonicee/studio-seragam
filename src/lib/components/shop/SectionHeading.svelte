@@ -1,11 +1,12 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { t } from '$lib/shop/i18n.svelte';
 
 	let {
 		title,
 		subtitle = '',
 		href = '',
-		linkLabel = 'Lihat semua',
+		linkLabel,
 		children
 	}: { title: string; subtitle?: string; href?: string; linkLabel?: string; children?: Snippet } = $props();
 </script>
@@ -16,7 +17,7 @@
 		{#if subtitle}<p class="mt-1.5 text-sm text-muted-foreground">{subtitle}</p>{/if}
 	</div>
 	{#if href}
-		<a href={href} class="shrink-0 text-sm font-semibold text-brand underline-offset-4 hover:underline">{linkLabel} →</a>
+		<a href={href} class="shrink-0 text-sm font-semibold text-brand underline-offset-4 hover:underline">{linkLabel ?? t('common.seeAll')} →</a>
 	{/if}
 	{@render children?.()}
 </div>

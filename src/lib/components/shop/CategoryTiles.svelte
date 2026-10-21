@@ -1,5 +1,6 @@
 <script lang="ts">
 	import ArrowRight from '@lucide/svelte/icons/arrow-right';
+	import { tn } from '$lib/shop/i18n.svelte';
 	import type { CategoryView } from '$lib/shop/types';
 
 	let { categories }: { categories: CategoryView[] } = $props();
@@ -26,7 +27,7 @@
 				<span class="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-4 text-white md:p-5">
 					<span>
 						<span class="display block text-2xl md:text-3xl">{c.name}</span>
-						<span class="mt-1 block text-xs text-white/75">{c.count} produk</span>
+						<span class="mt-1 block text-xs text-white/75">{tn('common.products', c.count)}</span>
 					</span>
 					<span class="grid size-9 shrink-0 place-items-center rounded-full bg-white text-ink transition group-hover:bg-brand group-hover:text-white">
 						<ArrowRight class="size-4" />

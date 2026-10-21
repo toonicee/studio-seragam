@@ -212,6 +212,10 @@ export interface ProductInput {
 	summary: string;
 	description: string;
 	details: string;
+	nameEn: string;
+	summaryEn: string;
+	descriptionEn: string;
+	detailsEn: string;
 	price: number;
 	sizes: string;
 	sizeChart: string;
@@ -253,6 +257,10 @@ export function saveProduct(db: Conn, id: number | null, input: ProductInput, no
 		summary: input.summary,
 		description: input.description,
 		details: input.details,
+		nameEn: input.nameEn,
+		summaryEn: input.summaryEn,
+		descriptionEn: input.descriptionEn,
+		detailsEn: input.detailsEn,
 		price: input.price,
 		sizes: parseSizes(input.sizes),
 		sizeChart: parseSizeChart(input.sizeChart),

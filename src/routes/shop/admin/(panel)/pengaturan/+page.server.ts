@@ -28,7 +28,10 @@ export const load: PageServerLoad = async () => {
 		),
 		passwordForm: await superValidate(zod4(passwordSchema), { id: 'password' }),
 		zones: listZones(db, true),
-		pages: INFO_PAGES.map((p) => ({ slug: p.slug, title: stored.get(p.slug)?.title ?? p.title, body: stored.get(p.slug)?.body ?? '' })),
+		pages: INFO_PAGES.map((p) => {
+			const row = stored.get(p.slug);
+			return { slug: p.slug, title: row?.title ?? p.title, body: row?.body ?? '', titleEn: row?.titleEn ?? '', bodyEn: row?.bodyEn ?? '' };
+		}),
 		placeholderWa: s.waAdmin === '6281200000000'
 	};
 };
@@ -80,13 +83,19 @@ export const actions: Actions = {
 	page: async ({ request, locals }) => {
 		requireAdmin(locals);
 		const fd = await request.formData();
-		const parsed = pageSchema.safeParse({ slug: fd.get('slug'), title: fd.get('title'), body: fd.get('body') });
+		const parsed = pageSchema.safeParse({
+			slug: fd.get('slug'),
+			title: fd.get('title'),
+			body: fd.get('body'),
+			titleEn: fd.get('titleEn') ?? '',
+			bodyEn: fd.get('bodyEn') ?? ''
+		});
 		if (!parsed.success) return fail(400, { message: parsed.error.issues[0]?.message ?? 'Isi halaman tidak valid' });
-		const { slug, title, body } = parsed.data;
+		const { slug, title, body, titleEn, bodyEn } = parsed.data;
 		getDb()
 			.insert(pages)
-			.values({ slug, title, body, updatedAt: new Date() })
-			.onConflictDoUpdate({ target: pages.slug, set: { title, body, updatedAt: new Date() } })
+			.values({ slug, title, body, titleEn, bodyEn, updatedAt: new Date() })
+			.onConflictDoUpdate({ target: pages.slug, set: { title, body, titleEn, bodyEn, updatedAt: new Date() } })
 			.run();
 		return { ok: `Halaman "${title}" disimpan` };
 	},
